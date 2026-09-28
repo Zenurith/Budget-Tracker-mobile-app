@@ -28,3 +28,16 @@ bin/
 
 ### Mac OS ###
 .DS_Store
+# Pocketwise local state and secrets
+.env
+.env.*
+!.env.example
+.venv/
+__pycache__/
+.pytest_cache/
+.coverage
+htmlcov/
+data/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
