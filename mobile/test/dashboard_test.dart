@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -82,7 +84,12 @@ class PreviewRepository extends FakeRepositories {
         'note': 'Grab ride home',
       }),
     ];
-    snapshot = MonthlySnapshot(summary: summary, categories: categories, budgets: budgets, entries: entries);
+    snapshot = MonthlySnapshot(
+      summary: summary,
+      categories: categories,
+      budgets: budgets,
+      entries: entries,
+    );
   }
 }
 
@@ -105,13 +112,17 @@ void main() {
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
-      await tester.pumpWidget(PocketwiseApp(presenters: testPresenters(PreviewRepository())));
+      await tester.pumpWidget(
+        PocketwiseApp(presenters: testPresenters(PreviewRepository())),
+      );
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
       expect(find.text('Your money, at a glance.'), findsOneWidget);
       await expectLater(
         find.byType(MaterialApp),
-        matchesGoldenFile('goldens/dashboard_$label.png'),
+        matchesGoldenFile(
+          'goldens/${Platform.isWindows ? 'windows/' : ''}dashboard_$label.png',
+        ),
       );
       for (final title in ['Transactions', 'Budgets', 'Reports', 'Settings']) {
         await tester.tap(find.text(title).last);

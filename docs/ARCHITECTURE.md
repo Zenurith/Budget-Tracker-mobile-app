@@ -1,6 +1,10 @@
 # Pocketwise: Model–View–Presenter architecture
 
+<<<<<<< HEAD
 Status: required target architecture. The existing prototype needs the migration below. “MVP” means **Model–View–Presenter**; first product scope is named **Release 1**.
+=======
+Status: target architecture with the initial client migration implemented. Feature presenters, repository interfaces, immutable state/effects and dependency tests now exist. Backend routing/domain/persistence have been split into modules; auth infrastructure coupling and shared transport/domain schemas remain to refine. “MVP” means **Model–View–Presenter**; first product scope is named **Release 1**.
+>>>>>>> 47d6999 (damn)
 
 ## Boundaries
 
@@ -69,9 +73,15 @@ Retain Argon2 password hashing, short-lived access JWTs, refresh rotation, owner
 
 Presenters receive model outcomes for expired sessions rather than handling JWTs. Domain services verify ownership for every related ID. The client must not send trusted user IDs to override authenticated ownership.
 
+<<<<<<< HEAD
 ## Prototype migration required
 
 Observed before this documentation revision:
+=======
+## Migration baseline and progress
+
+Observed before the migration (the controller and direct View API calls below have since been removed; main.py is now composition and error mapping):
+>>>>>>> 47d6999 (damn)
 
 - `mobile/lib/controllers/finance_controller.dart` contains a shared ChangeNotifier controller tightly coupled to Api.
 - `home_screen.dart` and `entry_editor.dart` call the API directly for several operations.

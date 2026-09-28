@@ -40,8 +40,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void message(Object e) {
     if (mounted) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(e.toString())));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.toString())));
     }
   }
 
@@ -131,11 +132,12 @@ class _HomeScreenState extends State<HomeScreen> {
                         TextButton(
                           onPressed: () async {
                             try {
-                              if (!await widget.presenters.auth.logout())
+                              if (!await widget.presenters.auth.logout()) {
                                 message(
                                   widget.presenters.auth.state.error ??
                                       "Unable to sign out",
                                 );
+                              }
                             } catch (e) {
                               message(e);
                             }
@@ -741,11 +743,12 @@ class _HomeScreenState extends State<HomeScreen> {
                     try {
                       if (!await widget.presenters.transactions.delete(
                         entry.id,
-                      ))
+                      )) {
                         message(
                           widget.presenters.transactions.state.error ??
                               "Unable to delete transaction",
                         );
+                      }
                     } catch (e) {
                       message(e);
                     }
@@ -763,7 +766,11 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget transactions() {
-    final visible = c.filteredEntries(search: search, type: filter, categoryId: categoryFilter);
+    final visible = c.filteredEntries(
+      search: search,
+      type: filter,
+      categoryId: categoryFilter,
+    );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -916,11 +923,12 @@ class _HomeScreenState extends State<HomeScreen> {
                       'Your transactions will stay in your account.',
                     )) {
                       try {
-                        if (!await widget.presenters.budgets.delete(b['id']))
+                        if (!await widget.presenters.budgets.delete(b['id'])) {
                           message(
                             widget.presenters.budgets.state.error ??
                                 'Unable to delete budget',
                           );
+                        }
                       } catch (e) {
                         message(e);
                       }
@@ -1181,11 +1189,12 @@ class _HomeScreenState extends State<HomeScreen> {
             OutlinedButton.icon(
               onPressed: () async {
                 try {
-                  if (!await widget.presenters.auth.logout())
+                  if (!await widget.presenters.auth.logout()) {
                     message(
                       widget.presenters.auth.state.error ??
                           "Unable to sign out",
                     );
+                  }
                 } catch (e) {
                   message(e);
                 }
@@ -1225,11 +1234,12 @@ class _HomeScreenState extends State<HomeScreen> {
                             try {
                               if (!await widget.presenters.categories.delete(
                                 cat.id,
-                              ))
+                              )) {
                                 message(
                                   widget.presenters.categories.state.error ??
                                       'Unable to delete category',
                                 );
+                              }
                             } catch (e) {
                               message(e);
                             }
@@ -1262,11 +1272,12 @@ class _HomeScreenState extends State<HomeScreen> {
               'This permanently deletes your account, transactions, categories and budgets.',
             )) {
               try {
-                if (!await widget.presenters.auth.deleteAccount())
+                if (!await widget.presenters.auth.deleteAccount()) {
                   message(
                     widget.presenters.auth.state.error ??
                         'Unable to delete account',
                   );
+                }
               } catch (e) {
                 message(e);
               }

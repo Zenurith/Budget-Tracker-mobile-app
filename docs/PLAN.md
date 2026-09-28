@@ -1,6 +1,10 @@
 # Release 1 implementation plan
 
+<<<<<<< HEAD
 Status: revised requirements plan, not completed implementation. MVP means Model–View–Presenter; release scope is called R1. Source of truth: [product requirements](../skills_files/budget_tracker_requirements.md).
+=======
+Status: requirements baseline recorded; initial presenter migration implemented and verified. Slice 1 backend boundary cleanup remains, and slice 2 currency selection is implemented in the UI only. Later slices remain unimplemented. MVP means Model–View–Presenter; release scope is called R1. Source of truth: [product requirements](../skills_files/budget_tracker_requirements.md).
+>>>>>>> 47d6999 (damn)
 
 ## Sequence and exit criteria
 

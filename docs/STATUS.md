@@ -1,6 +1,18 @@
 # Implementation status
 
+<<<<<<< HEAD
 Updated 2026-09-28. The repository contains a working prototype plus a revised Release 1 specification. Documentation changes in the current revision do not implement the new features.
+=======
+Updated 2026-09-28. The tracking prototype now uses feature presenters and a layered backend. Release 1 financial helper, protected funding and wishlist remain specified but unimplemented.
+
+## Architecture migration verified
+
+- Auth, overview, transaction, budget and category presenters use injected repository interfaces, immutable state and typed change effects. The shared FinanceController has been removed.
+- Views forward repository operations through presenters; dependency tests check that Views do not import API/storage adapters and presenters/models do not import Flutter.
+- Presenter tests cover stale responses, logout during loading, immutable snapshots, duplicate submission, error/retry behavior and disposal.
+- Backend routes, domain use cases, security/rate limiting and repositories have been extracted from main.py. Further boundary cleanup remains: auth still imports database exception types and security helpers, and domain methods share request models with transport.
+- Registration UI requires an explicit currency. API registration and the demo still have a legacy MYR default, so country-neutral onboarding is not complete.
+>>>>>>> 47d6999 (damn)
 
 ## Prototype capabilities already present
 
@@ -17,8 +29,13 @@ Updated 2026-09-28. The repository contains a working prototype plus a revised R
 
 | Area | Current state | Required change |
 |---|---|---|
+<<<<<<< HEAD
 | Model–View–Presenter | Not compliant: shared FinanceController, concrete Api coupling and some View→API calls | Feature presenters, model/use-case interfaces, immutable states/effects and architecture tests |
 | Country-neutral onboarding | Prototype defaults to MYR | Require explicit currency selection; remove assumed country context |
+=======
+| Model–View–Presenter | Feature presenters, repository interfaces and client dependency tests implemented | Complete backend boundary cleanup and expand widget state coverage as new features arrive |
+| Country-neutral onboarding | Registration UI requires currency; API/demo still default to MYR | Enforce explicit currency consistently and remove assumed country context |
+>>>>>>> 47d6999 (damn)
 | Financial helper | Not implemented | Gross/net profile, debt schedules, DSR/DTI rules, scenarios and snapshots |
 | Guilt-free wishlist | Not implemented | Items, funded reservations, readiness, forecast dates, purchase links and reversal flows |
 | Cash/obligation model | Not implemented | Reconciled liquid snapshot, planning horizon, commitment occurrences and no-double-counting rules |
@@ -35,6 +52,7 @@ Additional remaining items: category icon/color UI, recurring planning, monthly 
 
 Original requirement: Android 8+ and iOS 13+. Generated iOS target: 15.0. Android follows the installed Flutter SDK minimum. This discrepancy is unresolved; the project has not established its native release support matrix.
 
+<<<<<<< HEAD
 ## Existing validation, before the architecture migration
 
 - 19 backend tests passed; 94.34% statement coverage for the existing backend only.
@@ -44,3 +62,15 @@ Original requirement: Android 8+ and iOS 13+. Generated iOS target: 15.0. Androi
 - Native device builds and real MongoDB integration were not verified.
 
 These results do not cover DSR/DTI, wishlist, reservations, MVP presenter boundaries or new R1 requirements. See [TESTING.md](TESTING.md) for previous commands and new required acceptance suites.
+=======
+## Current validation after the presenter migration
+
+- 19 backend tests passed; 95.52% statement coverage for the existing backend only.
+- 15 Flutter tests passed; analysis was clean. Nine presenter/architecture tests also passed using plain Dart.
+- Flutter web release build succeeded, including the Wasm compatibility dry run.
+- Phone/desktop dashboard renders inspected; Windows golden baselines added while preserving the earlier baselines.
+- No live browser automation surface was available.
+- Native device builds and real MongoDB integration were not verified.
+
+These results cover existing tracking behavior and client presenter boundaries, not DSR/DTI, wishlist, reservations or the remaining R1 requirements. See [TESTING.md](TESTING.md) for commands and required acceptance suites.
+>>>>>>> 47d6999 (damn)

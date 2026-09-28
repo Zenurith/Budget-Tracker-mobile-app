@@ -2,11 +2,11 @@
 
 A personal budget tracker built with Flutter, FastAPI and MongoDB support. The revised [Release 1 requirements](skills_files/budget_tracker_requirements.md) require **Model–View–Presenter (MVP)** architecture, a country-neutral DSR/DTI financial helper and a guilt-free wishlist funded only by saved money.
 
-The current runnable app is an earlier tracking prototype. The presenter refactor, financial helper and wishlist are **specified but not implemented**; see [current status](docs/STATUS.md).
+The runnable tracking prototype now uses feature presenters with tested repository boundaries and a layered backend. The financial helper and wishlist are **specified but not implemented**; see [current status](docs/STATUS.md).
 
 ## Run locally
 
-Python 3.11+ and Flutter are required. On this machine Flutter is installed at `/Users/zactan/develop/flutter/bin/flutter`; add that directory to PATH or use the full path below.
+Python 3.11+ and Flutter are required. Add Flutter's `bin` directory to PATH. On the current Windows machine it is `C:\Users\User\develop\flutter\bin`.
 
 Start the API in one terminal:
 
@@ -23,13 +23,39 @@ Start Flutter in another:
 
 ```sh
 cd mobile
-/Users/zactan/develop/flutter/bin/flutter pub get
-/Users/zactan/develop/flutter/bin/flutter run -d chrome --web-port 5173
+flutter pub get
+flutter run -d chrome --web-port 5173
+```
+
+For the API on Windows PowerShell, use:
+
+```powershell
+cd backend
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
+Copy-Item .env.example .env
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --reload --env-file .env --host 127.0.0.1 --port 8000
 ```
 
 Use **Try the demo** for a fresh sample account, or create an account for your own transactions. Local data persists in `backend/data/pocketwise.sqlite`. Demo accounts are separate and are created only when requested. The local parser makes no external AI calls.
 
-For Android emulator development, `flutter run` defaults to API host `10.0.2.2:8000`. iOS simulator and web default to `localhost:8000`. A physical device needs an API URL reachable on your network:
+For Android emulator development, `flutter run` defaults to API host `10.0.2.2:8000`. iOS simulator and web default to `localhost:8000`.
+
+To run on an Android emulator, start the API above, open the `mobile/` folder
+as the Flutter project in your IDE, and start your emulator from Device Manager.
+From a terminal in `mobile/`, run:
+
+```powershell
+flutter pub get
+flutter devices
+flutter run -d emulator-5554
+```
+
+Use the emulator ID printed by `flutter devices` if it differs. The repository
+root contains a separate Java starter; the Flutter entry point is
+`mobile/lib/main.dart`. Keep the API terminal running for sign-in and demo mode.
+
+For a physical device, override the API address:
 
 ```sh
 flutter run --dart-define=API_URL=http://YOUR_LAN_IP:8000
@@ -64,4 +90,4 @@ API documentation: http://localhost:8000/docs
 - [Implemented features and remaining work](docs/STATUS.md)
 - [Testing and verification](docs/TESTING.md)
 
-The original Java starter remains untouched. The app lives in `mobile/` and `backend/`. This is a working prototype; the architecture migration, new financial features and remaining release work are tracked in the status document. Its current MYR default is legacy behavior to replace with explicit currency selection.
+The original Java starter remains untouched. The app lives in `mobile/` and `backend/`. This is a working prototype; architecture follow-up, new financial features and remaining release work are tracked in the status document. Registration UI requires currency selection; the API/demo MYR defaults still need replacement.

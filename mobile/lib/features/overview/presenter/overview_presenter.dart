@@ -47,12 +47,21 @@ class OverviewPresenter extends Presenter<OverviewState> {
     }),
   );
 
-  List<Entry> filteredEntries({String search = '', String type = 'all', String? categoryId}) {
+  List<Entry> filteredEntries({
+    String search = '',
+    String type = 'all',
+    String? categoryId,
+  }) {
     final query = search.toLowerCase();
-    return List.unmodifiable(entries.where((entry) =>
-      (type == 'all' || entry.type == type) &&
-      (categoryId == null || entry.categoryId == categoryId) &&
-      (entry.note.toLowerCase().contains(query) || category(entry.categoryId).name.toLowerCase().contains(query))));
+    return List.unmodifiable(
+      entries.where(
+        (entry) =>
+            (type == 'all' || entry.type == type) &&
+            (categoryId == null || entry.categoryId == categoryId) &&
+            (entry.note.toLowerCase().contains(query) ||
+                category(entry.categoryId).name.toLowerCase().contains(query)),
+      ),
+    );
   }
 
   Future<void> setAccount(Account? account) async {
