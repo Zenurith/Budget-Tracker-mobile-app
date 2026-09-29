@@ -14,7 +14,7 @@ def client():
 
 
 def signup(client, email='alex@example.com'):
-    response = client.post('/auth/register', json={'name':'Alex','email':email,'password':'correct-horse-123'})
+    response = client.post('/auth/register', json={'name':'Alex','email':email,'password':'correct-horse-123','currency':'EUR'})
     assert response.status_code == 201, response.text
     tokens = response.json()
     return {'Authorization': 'Bearer '+tokens['access_token']}, tokens
@@ -40,7 +40,7 @@ def test_auth_refresh_rotation_and_logout(client):
     assert client.post('/auth/logout',json={'refresh_token':new}).status_code==200
     assert client.post('/auth/refresh',json={'refresh_token':new}).status_code==401
     assert client.get('/auth/me',headers={'Authorization':'Bearer invalid'}).status_code==401
-    assert client.post('/auth/register',json={'name':'Other','email':'alex@example.com','password':'password1'}).status_code==409
+    assert client.post('/auth/register',json={'name':'Other','email':'alex@example.com','password':'password1','currency':'EUR'}).status_code==409
 
 
 def test_transaction_crud_filters_and_isolation(client):
@@ -137,7 +137,7 @@ def test_parser_rejects_ambiguous_input(client,text):
 
 def test_demo_and_rate_limit(client):
     assert client.get('/health').json()['status']=='ok'
-    demo=client.post('/auth/demo').json()
+    demo=client.post('/auth/demo', json={'currency':'USD'}).json()
     h={'Authorization':'Bearer '+demo['access_token']}
     assert client.get('/transactions',headers=h).json()['total']==8
     assert len(client.get('/budgets?period='+date.today().strftime('%Y-%m'),headers=h).json()['items'])==3
@@ -156,3 +156,47 @@ def test_local_persistence(tmp_path):
     assert db.consume('transactions','one')['id']=='one'
     assert db.consume('transactions','one') is None
     db.close()
+
+
+@pytest.mark.parametrize('endpoint', ['/auth/register', '/auth/demo'])
+@pytest.mark.parametrize('currency', [None, '', 'JPY', 'usd', 123])
+def test_onboarding_rejects_invalid_currency_without_writes(client, endpoint, currency):
+    body = {'name': 'Alex', 'email': 'alex@example.com', 'password': 'correct-horse-123'} if endpoint.endswith('register') else {}
+    if currency is not None:
+        body['currency'] = currency
+    response = client.post(endpoint, json=body)
+    assert response.status_code == 422
+    assert 'currency' in response.json()['error']['message']
+    for collection in ('users', 'sessions', 'transactions', 'budgets'):
+        assert client.app.state.repo.find(collection) == []
+
+
+@pytest.mark.parametrize('currency', ['EUR', 'GBP', 'MYR', 'SGD', 'USD'])
+@pytest.mark.parametrize('endpoint', ['/auth/register', '/auth/demo'])
+def test_onboarding_preserves_selected_currency(client, endpoint, currency):
+    body = {'currency': currency}
+    if endpoint.endswith('register'):
+        body.update(name='Alex', email='alex@example.com', password='correct-horse-123')
+    response = client.post(endpoint, json=body)
+    assert response.status_code in (200, 201)
+    session = response.json()
+    assert session['user']['currency'] == currency
+    headers = {'Authorization': 'Bearer ' + session['access_token']}
+    assert client.get('/auth/me', headers=headers).json()['currency'] == currency
+    refreshed = client.post('/auth/refresh', json={'refresh_token': session['refresh_token']})
+    assert refreshed.json()['user']['currency'] == currency
+    if endpoint.endswith('demo'):
+        assert client.get('/transactions', headers=headers).json()['total'] == 8
+
+
+def test_demo_requires_body_and_remains_disabled_in_mongo(monkeypatch):
+    repo = LocalRepository(':memory:')
+    try:
+        with TestClient(create_app(repo, secret='test-secret-that-is-at-least-32-characters')) as client:
+            assert client.post('/auth/demo').status_code == 422
+        monkeypatch.setenv('DATABASE_MODE', 'mongo')
+        with TestClient(create_app(repo, secret='test-secret-that-is-at-least-32-characters')) as client:
+            assert client.post('/auth/demo', json={'currency': 'USD'}).status_code == 404
+            assert repo.find('users') == []
+    finally:
+        repo.close()

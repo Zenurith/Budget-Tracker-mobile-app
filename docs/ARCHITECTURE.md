@@ -1,14 +1,10 @@
 # Pocketwise: Model–View–Presenter architecture
 
-<<<<<<< HEAD
-Status: required target architecture. The existing prototype needs the migration below. “MVP” means **Model–View–Presenter**; first product scope is named **Release 1**.
-=======
-Status: target architecture with the initial client migration implemented. Feature presenters, repository interfaces, immutable state/effects and dependency tests now exist. Backend routing/domain/persistence have been split into modules; auth infrastructure coupling and shared transport/domain schemas remain to refine. “MVP” means **Model–View–Presenter**; first product scope is named **Release 1**.
->>>>>>> 47d6999 (damn)
+Status: target architecture with the initial client migration implemented. Feature presenters, repository interfaces, immutable state/effects and dependency tests now exist. Backend transport, domain and infrastructure boundaries are implemented: immutable use-case inputs, domain-owned repository/security protocols, injected adapters and dependency tests. “MVP” means **Model–View–Presenter**; first product scope is named **Release 1**.
 
 ## Boundaries
 
-The Flutter application must follow MVP after the planned migration. The Python backend is a layered API/domain/repository service; HTTP routes are transport adapters, not Flutter presenters. Calling a backend route a controller does not make the client MVC, and renaming FinanceController alone does not implement MVP.
+The Flutter application uses feature presenters and repository interfaces; new features must preserve these MVP boundaries. The Python backend is a layered API/domain/repository service; HTTP routes are transport adapters, not Flutter presenters. Calling a backend route a controller does not make the client MVC, and renaming FinanceController alone does not implement MVP.
 
 | Layer | Owns | Must not own |
 |---|---|---|
@@ -59,6 +55,15 @@ Features: auth, transactions, categories, budgets, commitments, goals, financial
 
 No additional state-management package is mandated. The architecture is enforced by dependencies and tests rather than by choosing Provider/Riverpod/GetX or renaming folders.
 
+## Implemented backend boundaries
+
+- `api/schemas.py` owns Pydantic request validation. Routes convert validated requests into frozen dataclasses in `domain/commands.py`; transport serialization APIs do not enter the domain.
+- `domain/ports.py` defines structural repository, token and password contracts. `main.py` wires the SQLite/MongoDB adapters, JWT provider and Argon2 password hasher into the application.
+- Repositories translate uniqueness violations to `DuplicateRecordError`; authentication handles the registration race without importing a database driver. Other storage errors propagate unchanged.
+- `DomainError` carries a semantic error kind; `api/errors.py` preserves the existing HTTP statuses and error envelope. The domain imports neither FastAPI/Pydantic nor concrete storage/security adapters.
+- Use-case inputs represent normalized, validated application input. HTTP field constraints remain in the API schema; domain use cases enforce ownership, category compatibility, authentication and session rules. Future non-HTTP entry points must validate their inputs before calling these use cases.
+- Tests enforce domain dependencies and exercise use cases with in-memory fakes. Adapter tests verify duplicate-error translation; real MongoDB integration remains a separate release check.
+
 ## Calculation ownership and persistence
 
 Money uses integer minor units; ratios/frequency conversions use decimal precision with explicit display rounding. Financial calculations are server-authoritative, deterministic and formula-versioned. Any later offline preview must be labelled provisional and use shared fixtures; the server recalculates before allocations/purchases.
@@ -73,20 +78,14 @@ Retain Argon2 password hashing, short-lived access JWTs, refresh rotation, owner
 
 Presenters receive model outcomes for expired sessions rather than handling JWTs. Domain services verify ownership for every related ID. The client must not send trusted user IDs to override authenticated ownership.
 
-<<<<<<< HEAD
-## Prototype migration required
-
-Observed before this documentation revision:
-=======
 ## Migration baseline and progress
 
-Observed before the migration (the controller and direct View API calls below have since been removed; main.py is now composition and error mapping):
->>>>>>> 47d6999 (damn)
+Observed before the migration (the controller and direct View API calls below have since been removed; main.py is now composition; API error mapping lives in api/errors.py):
 
-- `mobile/lib/controllers/finance_controller.dart` contains a shared ChangeNotifier controller tightly coupled to Api.
-- `home_screen.dart` and `entry_editor.dart` call the API directly for several operations.
-- `backend/app/main.py` combines routing, security, reports and business behavior.
-- Financial helper, funding ledger and wishlist do not exist.
+- `mobile/lib/controllers/finance_controller.dart` contained a shared ChangeNotifier controller tightly coupled to Api.
+- `home_screen.dart` and `entry_editor.dart` called the API directly for several operations.
+- `backend/app/main.py` combined routing, security, reports and business behavior.
+- Financial helper, funding ledger and wishlist were absent and remain unimplemented.
 
 Migration order:
 
@@ -106,7 +105,7 @@ Migration order:
 - Views can render loading, empty, error, success, incomplete and stale states using fake presenters.
 - Domain tests own the financial examples and reservation invariants; widget tests do not define business rules.
 - Backend financial outputs have matching contract fixtures consumed by client tests.
-- Current prototype tests passing does not satisfy these gates until the migration exists.
+- Existing tracking tests, client dependency checks and backend domain/adapter checks cover the migration. New financial features require their own verification.
 
 ## References
 

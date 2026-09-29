@@ -4,6 +4,8 @@ services:
     ports:
       - "127.0.0.1:8000:8000"
     environment:
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.5-flash-lite}
       DATABASE_MODE: mongo
       MONGODB_URI: mongodb://mongo:27017
       MONGODB_DATABASE: pocketwise
@@ -14,6 +16,8 @@ services:
         condition: service_healthy
   mongo:
     image: mongo:8
+    ports:
+      - "127.0.0.1:27017:27017"
     volumes:
       - pocketwise-data:/data/db
     healthcheck:

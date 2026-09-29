@@ -30,6 +30,27 @@ class _AuthScreenState extends State<AuthScreen> {
   }
 
   Future<void> submit({bool demo = false}) async {
+    String? demoCurrency;
+    if (demo) {
+      demoCurrency = await showDialog<String>(
+        context: context,
+        builder: (context) => SimpleDialog(
+          title: const Text('Choose your demo currency'),
+          children: [
+            for (final code in InputRules.currencies)
+              SimpleDialogOption(
+                onPressed: () => Navigator.pop(context, code),
+                child: Text(code),
+              ),
+            SimpleDialogOption(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+          ],
+        ),
+      );
+      if (!mounted || demoCurrency == null) return;
+    }
     if (!demo && !form.currentState!.validate()) return;
     await widget.presenter.authenticate(
       AuthInput(
@@ -41,7 +62,7 @@ class _AuthScreenState extends State<AuthScreen> {
         email: email.text,
         password: password.text,
         name: name.text,
-        currency: currency,
+        currency: demo ? demoCurrency : currency,
       ),
     );
   }

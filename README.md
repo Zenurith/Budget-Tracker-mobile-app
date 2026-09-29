@@ -6,7 +6,7 @@ The runnable tracking prototype now uses feature presenters with tested reposito
 
 ## Run locally
 
-Python 3.11+ and Flutter are required. Add Flutter's `bin` directory to PATH. On the current Windows machine it is `C:\Users\User\develop\flutter\bin`.
+Python 3.11+ and Flutter are required. Add your Flutter SDK's `bin` directory to PATH.
 
 Start the API in one terminal:
 
@@ -14,7 +14,7 @@ Start the API in one terminal:
 cd backend
 python3 -m venv .venv
 .venv/bin/python -m pip install -r requirements-dev.txt
-cp .env.example .env
+cp -n .env.example .env
 # Optional: set JWT_SECRET in .env to preserve sessions across server restarts.
 .venv/bin/uvicorn app.main:app --reload --env-file .env --host 127.0.0.1 --port 8000
 ```
@@ -37,7 +37,7 @@ Copy-Item .env.example .env
 .\.venv\Scripts\python.exe -m uvicorn app.main:app --reload --env-file .env --host 127.0.0.1 --port 8000
 ```
 
-Use **Try the demo** for a fresh sample account, or create an account for your own transactions. Local data persists in `backend/data/pocketwise.sqlite`. Demo accounts are separate and are created only when requested. The local parser makes no external AI calls.
+Use **Try the demo** and select a currency for a fresh sample account, or create an account for your own transactions. Local data persists in `backend/data/pocketwise.sqlite`. Demo accounts are separate and are created only when requested. Natural-language transaction entry always uses the local rules parser and makes no external AI calls.
 
 For Android emulator development, `flutter run` defaults to API host `10.0.2.2:8000`. iOS simulator and web default to `localhost:8000`.
 
@@ -72,7 +72,11 @@ export JWT_SECRET="$(python3 -c 'import secrets; print(secrets.token_urlsafe(48)
 docker compose up --build
 ```
 
-The Compose database is isolated from host ports and persists in a named volume. This is a development setup, without production TLS or MongoDB authentication. Demo creation is disabled in MongoDB mode; create a real account instead.
+The Compose database is exposed on `127.0.0.1:27017` for local tools and persists in a named volume. This is a development setup, without production TLS or MongoDB authentication. Demo creation is disabled in MongoDB mode; create a real account instead.
+
+To inspect it in MongoDB Compass, choose **Add New Connection**, enter `mongodb://127.0.0.1:27017`, name the connection **Pocketwise local**, and select **Save & Connect**. No database username/password is required for this local configuration. The API creates the `pocketwise` collections and indexes at startup; register in the app and add a transaction to see your data. The API container continues to use `mongodb://mongo:27017` internally.
+
+Stop any separately running API before starting Compose to free port 8000. Check `http://localhost:8000/health` for `{"status":"ok","storage":"mongo"}`. Keep the same `JWT_SECRET` across restarts to preserve sessions. Existing SQLite data is not automatically copied to MongoDB.
 
 Alternatively, set `DATABASE_MODE=mongo`, `MONGODB_URI`, `MONGODB_DATABASE`, and `JWT_SECRET` in `backend/.env` and run the API directly.
 
@@ -90,4 +94,10 @@ API documentation: http://localhost:8000/docs
 - [Implemented features and remaining work](docs/STATUS.md)
 - [Testing and verification](docs/TESTING.md)
 
-The original Java starter remains untouched. The app lives in `mobile/` and `backend/`. This is a working prototype; architecture follow-up, new financial features and remaining release work are tracked in the status document. Registration UI requires currency selection; the API/demo MYR defaults still need replacement.
+The original Java starter remains untouched. The app lives in `mobile/` and `backend/`. This is a working prototype; new financial features, broader UI state coverage and remaining release work are tracked in the status document. Registration and demo onboarding require an explicit currency choice in both the UI and API (EUR, GBP, MYR, SGD or USD).
+
+## Planned Gemini features
+
+Gemini (`gemini-3.5-flash-lite`) is reserved for the financial helper and guilt-free wishlist. Keep `GEMINI_API_KEY` in `backend/.env`; `GEMINI_MODEL` records the intended model. These settings do not activate any AI feature yet. Transaction entry always uses local rules, even when a key is configured.
+
+The planned design uses Python for DSR/DTI, savings, commitments and purchase-readiness calculations, with Gemini explaining the results and answering questions. Both features remain unimplemented. The unused Gemini adapter is retained as a transport/validation reference and will need feature-specific prompts and schemas.

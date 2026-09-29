@@ -25,6 +25,7 @@ class FakeRepositories
         BudgetRepository,
         CategoryRepository {
   Account? account;
+  AuthInput? lastAuthInput;
   MonthlySnapshot snapshot = MonthlySnapshot(categories: [food]);
   final saves = <EntryDraft>[];
   int authCalls = 0, parses = 0, loads = 0, deletions = 0;
@@ -44,6 +45,7 @@ class FakeRepositories
   @override
   Future<Account> authenticate(AuthInput input) async {
     authCalls++;
+    lastAuthInput = input;
     check();
     return account = testAccount;
   }

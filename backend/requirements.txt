@@ -4,3 +4,4 @@ pymongo>=4.13,<5
 pwdlib[argon2]>=0.2,<1
 PyJWT>=2.10,<3
 email-validator>=2.2,<3
+certifi>=2025.1.31

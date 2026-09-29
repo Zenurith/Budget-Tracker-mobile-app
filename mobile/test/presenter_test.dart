@@ -96,6 +96,26 @@ void main() {
       expect(repo.authCalls, 1);
     },
   );
+  test('demo requires a supported currency before repository access', () async {
+    final repo = FakeRepositories();
+    final p = AuthPresenter(repo);
+    addTearDown(p.dispose);
+    await p.initialize();
+    for (final currency in [null, '', 'JPY', 'usd']) {
+      expect(
+        await p.authenticate(AuthInput(mode: 'demo', currency: currency)),
+        isFalse,
+      );
+      expect(p.state.error, 'Choose your currency');
+      expect(repo.authCalls, 0);
+    }
+    expect(
+      await p.authenticate(const AuthInput(mode: 'demo', currency: 'USD')),
+      isTrue,
+    );
+    expect(repo.authCalls, 1);
+    expect(repo.lastAuthInput!.currency, 'USD');
+  });
   test('month responses cannot replace a newer selection', () async {
     final pending = <int, Completer<MonthlySnapshot>>{};
     final repo = FakeRepositories()

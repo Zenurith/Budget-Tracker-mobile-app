@@ -4,6 +4,8 @@ import sqlite3
 import threading
 from pathlib import Path
 from pymongo import MongoClient
+from pymongo.errors import DuplicateKeyError
+from ..domain.ports import DuplicateRecordError
 
 
 class LocalRepository:
@@ -25,8 +27,13 @@ class LocalRepository:
         return next(iter(self.find(collection, **query)), None)
 
     def put(self, collection, doc):
-        with self.lock, self.db:
-            self.db.execute('INSERT INTO documents VALUES (?,?,?) ON CONFLICT(collection,id) DO UPDATE SET body=excluded.body', (collection, doc['id'], json.dumps(doc)))
+        try:
+            with self.lock, self.db:
+                self.db.execute('INSERT INTO documents VALUES (?,?,?) ON CONFLICT(collection,id) DO UPDATE SET body=excluded.body', (collection, doc['id'], json.dumps(doc)))
+        except sqlite3.IntegrityError as exc:
+            if exc.sqlite_errorcode not in (sqlite3.SQLITE_CONSTRAINT_UNIQUE, sqlite3.SQLITE_CONSTRAINT_PRIMARYKEY):
+                raise
+            raise DuplicateRecordError('A unique document already exists.') from exc
         return doc
 
     def delete(self, collection, **query):
@@ -64,7 +71,10 @@ class MongoRepository:
         return self.db[collection].find_one(query, {'_id': 0})
 
     def put(self, collection, doc):
-        self.db[collection].replace_one({'id': doc['id']}, doc, upsert=True)
+        try:
+            self.db[collection].replace_one({'id': doc['id']}, doc, upsert=True)
+        except DuplicateKeyError as exc:
+            raise DuplicateRecordError('A unique document already exists.') from exc
         return doc
 
     def delete(self, collection, **query):

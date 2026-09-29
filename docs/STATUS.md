@@ -1,18 +1,14 @@
 # Implementation status
 
-<<<<<<< HEAD
-Updated 2026-09-28. The repository contains a working prototype plus a revised Release 1 specification. Documentation changes in the current revision do not implement the new features.
-=======
-Updated 2026-09-28. The tracking prototype now uses feature presenters and a layered backend. Release 1 financial helper, protected funding and wishlist remain specified but unimplemented.
+Updated 2026-09-29. The tracking prototype now uses feature presenters and a layered backend. Release 1 financial helper, protected funding and wishlist remain specified but unimplemented.
 
 ## Architecture migration verified
 
 - Auth, overview, transaction, budget and category presenters use injected repository interfaces, immutable state and typed change effects. The shared FinanceController has been removed.
 - Views forward repository operations through presenters; dependency tests check that Views do not import API/storage adapters and presenters/models do not import Flutter.
 - Presenter tests cover stale responses, logout during loading, immutable snapshots, duplicate submission, error/retry behavior and disposal.
-- Backend routes, domain use cases, security/rate limiting and repositories have been extracted from main.py. Further boundary cleanup remains: auth still imports database exception types and security helpers, and domain methods share request models with transport.
-- Registration UI requires an explicit currency. API registration and the demo still have a legacy MYR default, so country-neutral onboarding is not complete.
->>>>>>> 47d6999 (damn)
+- Backend boundaries are implemented and tested: API schemas map to immutable domain inputs; domain-owned repository/token/password protocols are injected; adapters translate duplicate-write errors; API handlers map semantic domain failures to HTTP. Domain imports are restricted to the standard library and domain modules.
+- Registration and demo onboarding require explicit currency selection in the UI and API. Missing or unsupported currencies are rejected before creating account data; existing accounts keep their currency.
 
 ## Prototype capabilities already present
 
@@ -22,20 +18,15 @@ Updated 2026-09-28. The tracking prototype now uses feature presenters and a lay
 - Default categories and custom creation/rename/delete; backend icon/color fields.
 - Monthly overall/category budgets and on-screen threshold alerts.
 - Recorded balance, income/expenses, recent activity, category donut, monthly comparison and daily trend charts.
-- Local English parsing with review/confirmation before saving.
+- Local English transaction parsing with review/confirmation before saving; no external AI calls, even when a Gemini key is configured. Gemini is reserved for the planned financial helper and guilt-free wishlist; neither feature is implemented yet.
 - Persistent SQLite development repository, a MongoDB repository and development demo accounts.
 
 ## Required gaps under the revised baseline
 
 | Area | Current state | Required change |
 |---|---|---|
-<<<<<<< HEAD
-| Model–View–Presenter | Not compliant: shared FinanceController, concrete Api coupling and some View→API calls | Feature presenters, model/use-case interfaces, immutable states/effects and architecture tests |
-| Country-neutral onboarding | Prototype defaults to MYR | Require explicit currency selection; remove assumed country context |
-=======
-| Model–View–Presenter | Feature presenters, repository interfaces and client dependency tests implemented | Complete backend boundary cleanup and expand widget state coverage as new features arrive |
-| Country-neutral onboarding | Registration UI requires currency; API/demo still default to MYR | Enforce explicit currency consistently and remove assumed country context |
->>>>>>> 47d6999 (damn)
+| Model–View–Presenter | Feature presenters, repository interfaces and client dependency tests implemented | Preserve backend dependency gates and expand widget state coverage as new features arrive |
+| Country-neutral onboarding | Explicit currency required for registration and demo in UI/API; no default selection | Preserve this requirement in future profile and financial flows |
 | Financial helper | Not implemented | Gross/net profile, debt schedules, DSR/DTI rules, scenarios and snapshots |
 | Guilt-free wishlist | Not implemented | Items, funded reservations, readiness, forecast dates, purchase links and reversal flows |
 | Cash/obligation model | Not implemented | Reconciled liquid snapshot, planning horizon, commitment occurrences and no-double-counting rules |
@@ -52,25 +43,13 @@ Additional remaining items: category icon/color UI, recurring planning, monthly 
 
 Original requirement: Android 8+ and iOS 13+. Generated iOS target: 15.0. Android follows the installed Flutter SDK minimum. This discrepancy is unresolved; the project has not established its native release support matrix.
 
-<<<<<<< HEAD
-## Existing validation, before the architecture migration
+## Current validation on 2026-09-29 (macOS)
 
-- 19 backend tests passed; 94.34% statement coverage for the existing backend only.
-- 6 Flutter tests passed; analysis was clean; web build succeeded.
-- Phone/desktop dashboard renders inspected; local API/web HTTP availability checked.
-- No live browser automation surface was available.
-- Native device builds and real MongoDB integration were not verified.
-
-These results do not cover DSR/DTI, wishlist, reservations, MVP presenter boundaries or new R1 requirements. See [TESTING.md](TESTING.md) for previous commands and new required acceptance suites.
-=======
-## Current validation after the presenter migration
-
-- 19 backend tests passed; 95.52% statement coverage for the existing backend only.
-- 15 Flutter tests passed; analysis was clean. Nine presenter/architecture tests also passed using plain Dart.
+- 64 backend tests passed, including unused Gemini adapter validation and local-only transaction preview/save behavior. The earlier 47-test baseline had 96.61% statement coverage; coverage has not been remeasured for Gemini.
+- 18 Flutter tests passed; analysis was clean. Ten presenter/architecture tests also passed using plain Dart.
 - Flutter web release build succeeded, including the Wasm compatibility dry run.
-- Phone/desktop dashboard renders inspected; Windows golden baselines added while preserving the earlier baselines.
-- No live browser automation surface was available.
+- Existing phone/desktop golden comparisons passed without baseline changes; earlier Windows baselines remain available.
+- Live browser interaction was not rerun during this cleanup.
 - Native device builds and real MongoDB integration were not verified.
 
 These results cover existing tracking behavior and client presenter boundaries, not DSR/DTI, wishlist, reservations or the remaining R1 requirements. See [TESTING.md](TESTING.md) for commands and required acceptance suites.
->>>>>>> 47d6999 (damn)

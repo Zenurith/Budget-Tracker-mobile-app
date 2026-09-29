@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'package:pocketwise/core/model/contracts.dart';
+import 'package:pocketwise/data/api_repositories.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -39,6 +42,74 @@ void main() {
     expect(find.text('Enter your password'), findsOneWidget);
     expect(repository.authCalls, 0);
   });
+  testWidgets('demo asks for currency and cancellation creates no account', (
+    tester,
+  ) async {
+    final repository = FakeRepositories();
+    await tester.pumpWidget(
+      PocketwiseApp(presenters: testPresenters(repository)),
+    );
+    await tester.pumpAndSettle();
+    final demo = find.text('Take a look around · Try the demo');
+    await tester.ensureVisible(demo);
+    await tester.tap(demo);
+    await tester.pumpAndSettle();
+    expect(find.text('Choose your demo currency'), findsOneWidget);
+    expect(repository.authCalls, 0);
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    expect(repository.authCalls, 0);
+    await tester.tap(demo);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('USD'));
+    await tester.pumpAndSettle();
+    expect(repository.authCalls, 1);
+    expect(repository.lastAuthInput!.mode, 'demo');
+    expect(repository.lastAuthInput!.currency, 'USD');
+  });
+  test(
+    'auth adapter sends selected currency for demo and registration',
+    () async {
+      for (final mode in ['demo', 'register', 'login']) {
+        final api = Api(
+          client: MockClient((request) async {
+            expect(request.url.path, '/auth/$mode');
+            final body = jsonDecode(request.body) as Map<String, dynamic>;
+            if (mode == 'login') {
+              expect(body.containsKey('currency'), isFalse);
+            } else {
+              expect(body['currency'], 'GBP');
+            }
+            if (mode == 'demo') expect(body.keys, ['currency']);
+            return http.Response(
+              jsonEncode({
+                'access_token': 'access',
+                'refresh_token': 'refresh',
+                'user': {
+                  'id': 'alex',
+                  'name': 'Alex',
+                  'email': 'alex@example.com',
+                  'currency': 'GBP',
+                },
+              }),
+              200,
+            );
+          }),
+        );
+        final account = await ApiAuthRepository(api).authenticate(
+          AuthInput(
+            mode: mode,
+            currency: 'GBP',
+            name: 'Alex',
+            email: 'alex@example.com',
+            password: 'password1',
+          ),
+        );
+        expect(account.currency, 'GBP');
+        api.client.close();
+      }
+    },
+  );
   testWidgets(
     'natural entry previews without saving and confirms exactly once',
     (tester) async {

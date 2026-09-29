@@ -26,10 +26,9 @@ class ApiAuthRepository implements AuthRepository {
           'email': input.email.trim(),
           'password': input.password,
         },
-        if (input.mode == 'register') ...{
-          'name': input.name.trim(),
+        if (input.mode == 'register') ...{'name': input.name.trim()},
+        if (input.mode == 'register' || input.mode == 'demo')
           'currency': input.currency,
-        },
       },
     );
     final account = Account.fromJson(session['user'] as Json);

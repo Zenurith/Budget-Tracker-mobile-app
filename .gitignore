@@ -37,11 +37,7 @@ __pycache__/
 .pytest_cache/
 .coverage
 htmlcov/
-<<<<<<< HEAD
-data/
-=======
 /backend/data/
->>>>>>> 47d6999 (damn)
 *.sqlite
 *.sqlite-shm
 *.sqlite-wal

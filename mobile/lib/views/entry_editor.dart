@@ -127,7 +127,7 @@ class _EntryEditorState extends State<EntryEditor> {
             children: [
               if (widget.natural) ...[
                 const Text(
-                  'Try “Spent 15.50 on lunch yesterday”. Your text is processed privately by the app’s server.',
+                  'Try “Spent 15.50 on lunch yesterday”. Your text is processed locally by the app’s server. Review the details before saving.',
                 ),
                 const SizedBox(height: 16),
                 TextField(

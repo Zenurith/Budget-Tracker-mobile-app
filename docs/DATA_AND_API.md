@@ -2,6 +2,12 @@
 
 Status: design for Release 1, not a claim of implemented endpoints. The running prototype's `/docs` describes its current API. See [STATUS.md](STATUS.md) for the gap.
 
+## Implemented onboarding currency contract
+
+`POST /auth/register` requires `currency` alongside name, email and password. The local-only `POST /auth/demo` requires a JSON body such as `{"currency":"USD"}`. Both accept EUR, GBP, MYR, SGD or USD, with no default; omitted, null or unsupported currency values return HTTP 422 before any account/session/sample data is written. Clients using the former implicit MYR default must now send a currency. Login and existing accounts are unchanged.
+
+Demo amounts are illustrative minor-unit values in the chosen currency, not converted amounts or local cost estimates. Demo creation remains disabled in MongoDB mode.
+
 ## Shared conventions
 
 - Public IDs are opaque strings; database `_id` is internal. Every personal record has `id`, `user_id`, `created_at`, `updated_at` and integer `revision` unless immutable.

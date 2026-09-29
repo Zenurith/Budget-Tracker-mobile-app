@@ -1,8 +1,8 @@
 from datetime import date
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from ..models import Budget, Category, Login, ParseRequest, Refresh, Register, Transaction
-from ..domain import finance
+from .schemas import Budget, Category, DemoRequest, Login, ParseRequest, Refresh, Register, Transaction
+from ..domain import commands, finance
 from ..domain.demo import demo as seed_demo
 from ..infrastructure.rate_limit import AuthRateLimiter
 
@@ -30,19 +30,19 @@ def build_router(auth, mode):
 
     @router.post('/auth/register', status_code=201, dependencies=[Depends(auth_limit)])
     def register(data: Register, db=Depends(repo)):
-        return auth.register(data=data, db=db)
+        return auth.register(data=commands.Register(**data.model_dump()), db=db)
 
     @router.post('/auth/login', dependencies=[Depends(auth_limit)])
     def login(data: Login, db=Depends(repo)):
-        return auth.login(data=data, db=db)
+        return auth.login(data=commands.Login(**data.model_dump()), db=db)
 
     @router.post('/auth/refresh', dependencies=[Depends(auth_limit)])
     def refresh(data: Refresh, db=Depends(repo)):
-        return auth.refresh(data=data, db=db)
+        return auth.refresh(data=commands.Refresh(**data.model_dump()), db=db)
 
     @router.post('/auth/logout')
     def logout(data: Refresh, db=Depends(repo)):
-        return auth.logout(data=data, db=db)
+        return auth.logout(data=commands.Refresh(**data.model_dump()), db=db)
 
     @router.get('/auth/me')
     def me(user=Depends(current)):
@@ -58,11 +58,11 @@ def build_router(auth, mode):
 
     @router.post('/categories', status_code=201)
     def add_category(data: Category, user=Depends(current), db=Depends(repo)):
-        return finance.add_category(data=data, user=user, db=db)
+        return finance.add_category(data=commands.Category(**data.model_dump()), user=user, db=db)
 
     @router.put('/categories/{id}')
     def edit_category(id: str, data: Category, user=Depends(current), db=Depends(repo)):
-        return finance.edit_category(id=id, data=data, user=user, db=db)
+        return finance.edit_category(id=id, data=commands.Category(**data.model_dump()), user=user, db=db)
 
     @router.delete('/categories/{id}', status_code=204)
     def delete_category(id: str, user=Depends(current), db=Depends(repo)):
@@ -74,11 +74,11 @@ def build_router(auth, mode):
 
     @router.post('/transactions', status_code=201)
     def add_transaction(data: Transaction, user=Depends(current), db=Depends(repo)):
-        return finance.add_transaction(data=data, user=user, db=db)
+        return finance.add_transaction(data=commands.Transaction(**data.model_dump()), user=user, db=db)
 
     @router.put('/transactions/{id}')
     def edit_transaction(id: str, data: Transaction, user=Depends(current), db=Depends(repo)):
-        return finance.edit_transaction(id=id, data=data, user=user, db=db)
+        return finance.edit_transaction(id=id, data=commands.Transaction(**data.model_dump()), user=user, db=db)
 
     @router.delete('/transactions/{id}', status_code=204)
     def delete_transaction(id: str, user=Depends(current), db=Depends(repo)):
@@ -90,7 +90,7 @@ def build_router(auth, mode):
 
     @router.post('/budgets', status_code=201)
     def set_budget(data: Budget, user=Depends(current), db=Depends(repo)):
-        return finance.set_budget(data=data, user=user, db=db)
+        return finance.set_budget(data=commands.Budget(**data.model_dump()), user=user, db=db)
 
     @router.delete('/budgets/{id}', status_code=204)
     def delete_budget(id: str, user=Depends(current), db=Depends(repo)):
@@ -102,12 +102,12 @@ def build_router(auth, mode):
 
     @router.post('/nlp/parse')
     def parse_entry(data: ParseRequest, user=Depends(current), db=Depends(repo)):
-        return finance.parse_entry(data=data, user=user, db=db)
+        return finance.parse_entry(data=commands.ParseRequest(**data.model_dump()), user=user, db=db)
 
     @router.post('/auth/demo', dependencies=[Depends(auth_limit)])
-    def demo(db=Depends(repo)):
+    def demo(data: DemoRequest, db=Depends(repo)):
         if mode != 'local':
             raise HTTPException(404, 'Demo is only available in local development.')
-        return seed_demo(db, auth)
+        return seed_demo(data.currency, db, auth)
 
     return router

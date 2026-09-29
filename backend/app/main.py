@@ -1,16 +1,13 @@
-"""Application composition and transport error mapping."""
+"""Composition root: wire API adapters, domain services and infrastructure."""
 import os
 import secrets
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
-from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
-from starlette.exceptions import HTTPException
 from .api.routes import build_router
+from .api.errors import install_error_handlers
 from .domain.auth import AuthService
-from .domain.errors import DomainError
-from .infrastructure.security import TokenService
+from .infrastructure.security import Argon2PasswordHasher, TokenService
 from .repositories.documents import LocalRepository, MongoRepository
 
 
@@ -31,20 +28,9 @@ def create_app(repository=None, secret=None):
     app = FastAPI(title='Pocketwise API', version='0.2.0', lifespan=lifespan)
     app.add_middleware(CORSMiddleware, allow_origins=os.getenv('CORS_ORIGINS', 'http://localhost:5173,http://127.0.0.1:5173').split(','), allow_methods=['GET','POST','PUT','DELETE'], allow_headers=['Authorization','Content-Type'])
 
-    @app.exception_handler(HTTPException)
-    async def http_error(request, exc):
-        return JSONResponse({'error': {'message': str(exc.detail)}}, status_code=exc.status_code, headers=exc.headers)
+    install_error_handlers(app)
 
-    @app.exception_handler(DomainError)
-    async def domain_error(request, exc):
-        return JSONResponse({'error': {'message': exc.detail}}, status_code=exc.status_code)
-
-    @app.exception_handler(RequestValidationError)
-    async def validation_error(request, exc):
-        messages = [f"{'.'.join(str(p) for p in e['loc'][1:])}: {e['msg']}" for e in exc.errors()]
-        return JSONResponse({'error': {'message': '; '.join(messages)}}, status_code=422)
-
-    app.include_router(build_router(AuthService(TokenService(jwt_secret)), mode))
+    app.include_router(build_router(AuthService(TokenService(jwt_secret), Argon2PasswordHasher()), mode))
     return app
 
 

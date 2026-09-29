@@ -1,7 +1,7 @@
 import time
 from collections import defaultdict, deque
 from threading import Lock
-from ..domain.errors import DomainError
+from ..domain.errors import DomainError, ErrorKind
 
 class AuthRateLimiter:
     def __init__(self):
@@ -18,5 +18,5 @@ class AuthRateLimiter:
             while history and history[0] < now - 60:
                 history.popleft()
             if len(history) >= 20:
-                raise DomainError(429, 'Too many attempts. Please try again in a minute.')
+                raise DomainError(ErrorKind.RATE_LIMITED, 'Too many attempts. Please try again in a minute.')
             history.append(now)

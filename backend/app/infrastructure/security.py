@@ -3,10 +3,22 @@ from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 import jwt
 from pwdlib import PasswordHash
-from ..domain.errors import DomainError
+from ..domain.errors import DomainError, ErrorKind
 
-password_hash = PasswordHash.recommended()
-DUMMY_HASH = password_hash.hash(secrets.token_urlsafe(24))
+class Argon2PasswordHasher:
+    def __init__(self):
+        self._hasher = PasswordHash.recommended()
+        self._dummy_hash = self._hasher.hash(secrets.token_urlsafe(24))
+
+    @property
+    def dummy_hash(self) -> str:
+        return self._dummy_hash
+
+    def hash(self, value: str) -> str:
+        return self._hasher.hash(value)
+
+    def verify(self, value: str, hashed: str) -> bool:
+        return self._hasher.verify(value, hashed)
 
 class TokenService:
     def __init__(self, secret):
@@ -23,4 +35,4 @@ class TokenService:
                 raise ValueError()
             return data
         except (jwt.InvalidTokenError, ValueError):
-            raise DomainError(401, 'Your session has expired. Please sign in again.')
+            raise DomainError(ErrorKind.UNAUTHORIZED, 'Your session has expired. Please sign in again.')

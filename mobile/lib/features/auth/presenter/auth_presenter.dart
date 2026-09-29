@@ -34,15 +34,15 @@ class AuthPresenter extends Presenter<AuthState> {
   void clearError() => emit(AuthState(account: state.account));
   Future<bool> authenticate(AuthInput input) async {
     if (state.busy || state.starting || disposed) return false;
-    final error = input.mode == 'demo'
+    final currencyError = InputRules.currencies.contains(input.currency)
         ? null
+        : 'Choose your currency';
+    final error = input.mode == 'demo'
+        ? currencyError
         : validateEmail(input.email) ??
               validatePassword(input.password, input.mode == 'register') ??
               (input.mode == 'register'
-                  ? validateName(input.name) ??
-                        (InputRules.currencies.contains(input.currency)
-                            ? null
-                            : 'Choose your currency')
+                  ? validateName(input.name) ?? currencyError
                   : null);
     if (error != null) {
       emit(AuthState(error: error));

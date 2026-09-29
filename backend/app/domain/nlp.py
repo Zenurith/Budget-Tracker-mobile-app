@@ -2,7 +2,7 @@
 import re
 from datetime import date, timedelta
 from decimal import Decimal
-from .errors import DomainError
+from .errors import DomainError, ErrorKind
 
 WORDS = {
     'Food': ('lunch', 'dinner', 'breakfast', 'coffee', 'food', 'restaurant', 'groceries', 'grocery', 'cafe'),
@@ -24,7 +24,7 @@ def parse(text, reference_date, categories):
         try:
             when = date.fromisoformat(iso.group())
         except ValueError:
-            raise DomainError(422, 'Please enter a valid date.')
+            raise DomainError(ErrorKind.INVALID_INPUT, 'Please enter a valid date.')
         lower = lower.replace(iso.group(), '')
     elif 'yesterday' in lower:
         when -= timedelta(days=1)
@@ -36,10 +36,10 @@ def parse(text, reference_date, categories):
         when -= timedelta(days=offset or 7)
     amounts = re.findall(r'(?<![\w.\-])(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d{1,2})?(?![\w.])', lower)
     if len(amounts) != 1:
-        raise DomainError(422, 'Please include exactly one amount, for example: Spent 15.50 on lunch yesterday.')
+        raise DomainError(ErrorKind.INVALID_INPUT, 'Please include exactly one amount, for example: Spent 15.50 on lunch yesterday.')
     amount = int(Decimal(amounts[0].replace(',', '')) * 100)
     if amount <= 0 or amount > 100_000_000_000:
-        raise DomainError(422, 'Please enter a positive amount within the supported range.')
+        raise DomainError(ErrorKind.INVALID_INPUT, 'Please enter a positive amount within the supported range.')
     kind = 'income' if re.search(r'\b(earned|received|salary|paycheck|wages|income|refund|bonus)\b', lower) else 'expense'
     candidates = [c for c in categories if c['type'] == kind]
     selected = next((c for c in candidates if re.search(r'\b' + re.escape(c['name'].lower()) + r'\b', lower)), None)
