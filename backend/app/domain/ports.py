@@ -1,5 +1,5 @@
 """Domain-owned contracts implemented by infrastructure adapters."""
-from typing import Any, Protocol
+from typing import Any, Protocol, ContextManager
 
 Document = dict[str, Any]
 
@@ -9,6 +9,9 @@ class DuplicateRecordError(Exception):
 
 
 class DocumentRepository(Protocol):
+    def atomic(self, owner: str) -> ContextManager['DocumentRepository']:
+        """Serialize owner mutations and commit all writes, or roll back all writes."""
+        ...
     def find(self, collection: str, **query: Any) -> list[Document]: ...
     def get(self, collection: str, **query: Any) -> Document | None: ...
     def put(self, collection: str, doc: Document) -> Document: ...

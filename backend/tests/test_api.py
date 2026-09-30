@@ -189,12 +189,12 @@ def test_onboarding_preserves_selected_currency(client, endpoint, currency):
         assert client.get('/transactions', headers=headers).json()['total'] == 8
 
 
-def test_demo_requires_body_and_remains_disabled_in_mongo(monkeypatch):
+def test_demo_requires_body_and_remains_disabled_in_supabase(monkeypatch):
     repo = LocalRepository(':memory:')
     try:
         with TestClient(create_app(repo, secret='test-secret-that-is-at-least-32-characters')) as client:
             assert client.post('/auth/demo').status_code == 422
-        monkeypatch.setenv('DATABASE_MODE', 'mongo')
+        monkeypatch.setenv('DATABASE_MODE', 'supabase')
         with TestClient(create_app(repo, secret='test-secret-that-is-at-least-32-characters')) as client:
             assert client.post('/auth/demo', json={'currency': 'USD'}).status_code == 404
             assert repo.find('users') == []

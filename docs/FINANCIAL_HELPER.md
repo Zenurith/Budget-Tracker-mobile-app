@@ -1,6 +1,6 @@
 # Financial helper specification
 
-Status: required for Release 1; not implemented in the prototype. Covers FR-30–FR-35 and supports FR-31/FR-43 commitment planning.
+Status: required for Release 1. Financial input profiles, debt schedules and recurring commitment/payment flows are implemented. Ratio calculations, scenarios, explanations and saved calculation snapshots remain unimplemented. Covers FR-30–FR-35 and supports FR-31/FR-43 commitment planning.
 
 ## Purpose and terminology
 

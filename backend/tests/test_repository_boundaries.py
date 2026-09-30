@@ -1,10 +1,11 @@
-from unittest.mock import Mock
+from unittest.mock import MagicMock
 
 import pytest
-from pymongo.errors import DuplicateKeyError
+from psycopg.errors import UniqueViolation
 
 from app.domain.ports import DuplicateRecordError
-from app.repositories.documents import LocalRepository, MongoRepository
+from app.repositories.documents import LocalRepository
+from app.repositories.supabase import SupabaseRepository
 
 
 def test_sqlite_duplicate_is_translated_and_rolled_back():
@@ -21,14 +22,39 @@ def test_sqlite_duplicate_is_translated_and_rolled_back():
         repo.close()
 
 
-def test_mongo_duplicate_is_translated_without_masking_other_errors():
-    # Adapter contract test only: no MongoDB integration is claimed.
-    repo = MongoRepository.__new__(MongoRepository)
-    collection = Mock()
-    repo.db = {'users': collection}
-    collection.replace_one.side_effect = DuplicateKeyError('duplicate')
+def test_supabase_duplicate_is_translated_without_masking_other_errors():
+    # Driver boundary test; the live database contract is tested separately.
+    repo = SupabaseRepository.__new__(SupabaseRepository)
+    repo.pool = MagicMock()
+    db = repo.pool.connection.return_value.__enter__.return_value
+    db.execute.side_effect = UniqueViolation('duplicate')
     with pytest.raises(DuplicateRecordError):
         repo.put('users', {'id': 'first'})
-    collection.replace_one.side_effect = RuntimeError('unavailable')
+    db.execute.side_effect = RuntimeError('unavailable')
     with pytest.raises(RuntimeError, match='unavailable'):
         repo.put('users', {'id': 'first'})
+
+
+def test_unknown_database_mode_is_rejected(monkeypatch):
+    from app.main import create_app
+    monkeypatch.setenv('DATABASE_MODE', 'typo')
+    with pytest.raises(RuntimeError, match='DATABASE_MODE'):
+        create_app()
+
+
+def test_supabase_requires_stable_secret(monkeypatch):
+    from app.main import create_app
+    monkeypatch.setenv('DATABASE_MODE', 'supabase')
+    monkeypatch.delenv('JWT_SECRET', raising=False)
+    with pytest.raises(RuntimeError, match='JWT_SECRET'):
+        create_app()
+
+
+def test_supabase_requires_connection_string(monkeypatch):
+    from app.main import create_app
+    from fastapi.testclient import TestClient
+    monkeypatch.setenv('DATABASE_MODE', 'supabase')
+    monkeypatch.delenv('SUPABASE_DB_URL', raising=False)
+    with pytest.raises(RuntimeError, match='SUPABASE_DB_URL'):
+        with TestClient(create_app(secret='x' * 32)):
+            pass

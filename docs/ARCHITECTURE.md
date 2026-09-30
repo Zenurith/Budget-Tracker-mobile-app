@@ -2,6 +2,8 @@
 
 Status: target architecture with the initial client migration implemented. Feature presenters, repository interfaces, immutable state/effects and dependency tests now exist. Backend transport, domain and infrastructure boundaries are implemented: immutable use-case inputs, domain-owned repository/security protocols, injected adapters and dependency tests. “MVP” means **Model–View–Presenter**; first product scope is named **Release 1**.
 
+Planning follows the same boundaries through `PlanningPresenter`, `PlanningRepository`, its API adapter and the Python planning domain. The repository `atomic(owner)` contract groups payment/expense/link/revision writes. SQLite uses an immediate transaction; Supabase uses a short Postgres transaction and per-owner advisory lock. Planning mutations use expected revisions; payment operations additionally retain idempotency results. Linked transaction changes and category reference guards share the same owner lock.
+
 ## Boundaries
 
 The Flutter application uses feature presenters and repository interfaces; new features must preserve these MVP boundaries. The Python backend is a layered API/domain/repository service; HTTP routes are transport adapters, not Flutter presenters. Calling a backend route a controller does not make the client MVC, and renaming FinanceController alone does not implement MVP.
@@ -13,7 +15,7 @@ The Flutter application uses feature presenters and repository interfaces; new f
 | Presenter | View-state transitions, application action handling, calling model/use-case interfaces, mapping outcomes to display state/effects | Widgets/BuildContext, direct HTTP clients/database plugins, authoritative financial formulas |
 | API transport | Authentication, request/response validation, error mapping, owner-scoped input handling | UI state, duplicated formula logic, unrestricted document access |
 | Domain services | Ratios, commitment reconciliation, reservation invariants, idempotent purchase coordination | Flutter concerns, LLM-supplied arithmetic or unvalidated cross-user references |
-| Repositories | MongoDB/local persistence, optimistic revisions and atomic transaction boundaries | Presentation or lender assumptions |
+| Repositories | Supabase Postgres/local persistence, optimistic revisions and atomic transaction boundaries | Presentation or lender assumptions |
 
 ## Flow
 
@@ -26,7 +28,7 @@ flowchart LR
     R --> A[API and cache adapters]
     A --> H[FastAPI transport]
     H --> D[Domain calculation and funding services]
-    D --> M[MongoDB repositories]
+    D --> M[Supabase Postgres repositories]
 ```
 
 A View subscribes to a presenter's read-only state and forwards events such as `loadMonth`, `submitTransaction`, `calculateScenario` or `allocateWishlistFunds`. The presenter has no Flutter imports; use plain Dart streams or equivalent observable abstractions and a widget-side lifecycle adapter. Subscription attachment/disposal belongs at the View boundary.
@@ -47,7 +49,7 @@ mobile/lib/
 backend/app/
   api/                       # HTTP routers, auth dependencies, transport schemas
   domain/                    # entities, rules, calculation/funding use cases
-  repositories/              # interfaces and MongoDB/local implementations
+  repositories/              # interfaces and Supabase Postgres/local implementations
   infrastructure/            # settings, token, mail, storage, job adapters
 ```
 
@@ -58,11 +60,11 @@ No additional state-management package is mandated. The architecture is enforced
 ## Implemented backend boundaries
 
 - `api/schemas.py` owns Pydantic request validation. Routes convert validated requests into frozen dataclasses in `domain/commands.py`; transport serialization APIs do not enter the domain.
-- `domain/ports.py` defines structural repository, token and password contracts. `main.py` wires the SQLite/MongoDB adapters, JWT provider and Argon2 password hasher into the application.
+- `domain/ports.py` defines structural repository, token and password contracts. `main.py` wires the SQLite/Supabase Postgres adapters, JWT provider and Argon2 password hasher into the application.
 - Repositories translate uniqueness violations to `DuplicateRecordError`; authentication handles the registration race without importing a database driver. Other storage errors propagate unchanged.
 - `DomainError` carries a semantic error kind; `api/errors.py` preserves the existing HTTP statuses and error envelope. The domain imports neither FastAPI/Pydantic nor concrete storage/security adapters.
 - Use-case inputs represent normalized, validated application input. HTTP field constraints remain in the API schema; domain use cases enforce ownership, category compatibility, authentication and session rules. Future non-HTTP entry points must validate their inputs before calling these use cases.
-- Tests enforce domain dependencies and exercise use cases with in-memory fakes. Adapter tests verify duplicate-error translation; real MongoDB integration remains a separate release check.
+- Tests enforce domain dependencies and exercise use cases with in-memory fakes. Adapter tests verify duplicate-error translation; real Supabase Postgres integration remains a separate release check.
 
 ## Calculation ownership and persistence
 
@@ -70,7 +72,7 @@ Money uses integer minor units; ratios/frequency conversions use decimal precisi
 
 Financial profiles, debt schedules, cash snapshots and reservations have separate purposes. Budgets do not create cash. The wishlist consumes a consistent snapshot of liabilities/reserves and a versioned aggregate, never the dashboard's incomplete net transaction total.
 
-MongoDB is the production source of truth. Allocation/purchase operations need a transaction-capable deployment, stable idempotency keys and optimistic concurrency checks. A local repository must reproduce the same invariants for tests. The existing SQLite fallback is only a development tool; offline mobile storage is a separate adapter and has not been implemented.
+Supabase Postgres is the production source of truth. Allocation/purchase operations need a transaction-capable deployment, stable idempotency keys and optimistic concurrency checks. A local repository must reproduce the same invariants for tests. The existing SQLite fallback is only a development tool; offline mobile storage is a separate adapter and has not been implemented.
 
 ## Security and lifecycle
 

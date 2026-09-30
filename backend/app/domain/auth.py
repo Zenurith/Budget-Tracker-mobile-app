@@ -1,9 +1,10 @@
 import hashlib
 from datetime import datetime, timezone
 from uuid import uuid4
-from .commands import Login, Refresh, Register
+from .commands import Login, Refresh, Register, UpdateProfile
 from .ports import DocumentRepository, DuplicateRecordError, PasswordHasher, TokenProvider
 from .errors import DomainError, ErrorKind
+from .finance import categories
 
 class AuthService:
     def __init__(self, tokens: TokenProvider, passwords: PasswordHasher):
@@ -18,7 +19,7 @@ class AuthService:
         return user
 
     def public(self, user):
-        return {k: v for k, v in user.items() if k != 'password_hash'}
+        return {k: user[k] for k in ('id', 'name', 'email', 'currency', 'created_at') if k in user}
 
     def session(self, user, db: DocumentRepository):
         refresh_token = self.tokens.token(user['id'], 'refresh', 30 * 86400)
@@ -59,7 +60,29 @@ class AuthService:
     def me(self, user=None):
         return self.public(user)
 
+    def update_profile(self, data: UpdateProfile, user, db: DocumentRepository):
+        name = data.name.strip()
+        if not name or len(name) > 80:
+            raise DomainError(ErrorKind.INVALID_INPUT, 'Enter a name between 1 and 80 characters.')
+        updated = dict(user, name=name)
+        db.put('users', updated)
+        return self.public(updated)
+
+    def export_data(self, user, db: DocumentRepository):
+        return {
+            'schema_version': 1,
+            'exported_at': datetime.now(timezone.utc).isoformat(),
+            'money_unit': 'minor_units',
+            'account': self.public(user),
+            'categories': categories(user, db),
+            'planning': [{k: v for k, v in p.items() if k != 'operations'}
+                         for p in db.find('planning', user_id=user['id'])],
+            **{collection: db.find(collection, user_id=user['id'])
+               for collection in ('transactions', 'budgets')},
+        }
+
     def delete_account(self, user=None, db: DocumentRepository = None):
-        for collection in ('transactions', 'budgets', 'categories', 'sessions'):
-            db.delete(collection, user_id=user['id'])
-        db.delete('users', id=user['id'])
+        with db.atomic(user['id']) as tx:
+            for collection in ('transactions', 'budgets', 'categories', 'sessions', 'planning'):
+                tx.delete(collection, user_id=user['id'])
+            tx.delete('users', id=user['id'])

@@ -7,6 +7,14 @@ class ApiAuthRepository implements AuthRepository {
   ApiAuthRepository(this._api);
 
   @override
+  Future<Account> updateProfile(String name) async => Account.fromJson(
+    await _api.request('PUT', '/auth/me', body: {'name': name}),
+  );
+
+  @override
+  Future<Json> exportData() => _api.request('GET', '/auth/me/export');
+
+  @override
   Future<Account?> restore() async {
     await _api.restore();
     if (_api.accessToken == null) return null;
@@ -63,6 +71,30 @@ class ApiFinanceRepository
         CategoryRepository {
   final Api _api;
   ApiFinanceRepository(this._api);
+
+  @override
+  Future<EntryPage> searchEntries(EntryFilter filter, int page) async {
+    final query = Uri(
+      queryParameters: {
+        'start': dateOf(filter.start),
+        'end': dateOf(filter.end),
+        'q': filter.query,
+        'page': '$page',
+        'page_size': '50',
+        if (filter.type != 'all') 'type': filter.type,
+        if (filter.categoryId != null) 'category_id': filter.categoryId!,
+        if (filter.minAmount != null) 'min_amount': '${filter.minAmount}',
+        if (filter.maxAmount != null) 'max_amount': '${filter.maxAmount}',
+      },
+    ).query;
+    final result = await _api.request('GET', '/transactions?$query');
+    return EntryPage(
+      (result['items'] as List)
+          .map((item) => Entry.fromJson(item as Json))
+          .toList(),
+      result['total'] as int,
+    );
+  }
 
   @override
   Future<MonthlySnapshot> loadMonth(DateTime month) async {

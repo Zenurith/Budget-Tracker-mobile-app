@@ -1,6 +1,6 @@
 # Release 1 implementation plan
 
-Status: requirements baseline recorded; initial presenter migration implemented and verified. Slice 1 backend boundary cleanup is complete and verified; slice 2 explicit currency selection is implemented across registration and demo UI/API; other core tracking work remains. Later slices remain unimplemented. MVP means Model–View–Presenter; release scope is called R1. Source of truth: [product requirements](../skills_files/budget_tracker_requirements.md).
+Status: Slice 1 is complete. Slice 3 financial inputs, schedules, occurrence/payment linking and confirmation flows are implemented; Slice 4 (DSR/DTI, scenarios and snapshots) is next. Slice 2 now includes explicit currency selection, account name editing, personal-data JSON export, custom category icon/color controls, paginated date/amount transaction filters and the core spending/budget monthly review. Password recovery is deferred at the user's request (2026-09-30), so Slice 2 is not fully closed. Debt-ratio and goal/wishlist review sections depend on later slices. MVP means Model–View–Presenter; release scope is called R1. Source of truth: [product requirements](../skills_files/budget_tracker_requirements.md).
 
 ## Sequence and exit criteria
 
@@ -11,9 +11,9 @@ Status: requirements baseline recorded; initial presenter migration implemented 
 | 2. Core tracking completion | Explicit currency selection, profile/reset flow, category appearance, amount filters, in-app review, export and privacy | Required R1 core scenarios work; no country assumed; production gaps visible |
 | 3. Financial profile and commitments | Gross/net income sources, debt schedules, recurring occurrences, paid/partial linking and confirmation flows | Complete/incomplete profiles represented correctly; no duplicate debt/paid occurrence accounting |
 | 4. Financial helper | DSR/DTI, explanations, scenarios and explicit saved snapshots | FH-01–FH-12 pass; decimal arithmetic and owner isolation tested; presenter's state transitions tested without Flutter |
-| 5. Protected funding | Savings/emergency reserves, cash snapshot, horizon, essential allowances, reservation ledger, idempotency/concurrency | Atomic funding contract verified against MongoDB; cash, future surplus and allocations remain distinct |
+| 5. Protected funding | Savings/emergency reserves, cash snapshot, horizon, essential allowances, reservation ledger, idempotency/concurrency | Atomic funding contract verified against Supabase Postgres; cash, future surplus and allocations remain distinct |
 | 6. Guilt-free wishlist | Items, funding/release/reallocation, readiness, dates, purchase links and reversal handling | WL-01–WL-14 pass; retries/concurrency cannot overspend or double-post; no forecast treated as savings |
-| 7. Offline and release hardening | Cache/queue/conflicts, accessible charts/states, deployment security, backups, performance and OS checks | R1 non-functional gates measured; native/Mongo integration verified; unsupported targets resolved explicitly |
+| 7. Offline and release hardening | Cache/queue/conflicts, accessible charts/states, deployment security, backups, performance and OS checks | R1 non-functional gates measured; native/Supabase integration verified; unsupported targets resolved explicitly |
 
 Wishlist UI may be prototyped during earlier slices, but readiness cannot be considered complete before the protected-funding model exists. Financial helper and wishlist are required R1 features, not optional future enhancements.
 
@@ -36,7 +36,7 @@ Wishlist UI may be prototyped during earlier slices, but readiness cannot be con
 - Presenter: loading/success/error/incomplete/stale states, rejected inputs, duplicate submission prevention and stale-response ordering.
 - View: action forwarding, accessible labels, 200% text scaling and representative screen widths.
 - API: request/response fixtures, status codes, ownership, revision handling and idempotency.
-- Persistence: real MongoDB transaction, index, rollback, concurrent request and restore tests.
+- Persistence: real Supabase Postgres transaction, index, rollback, concurrent request and restore tests.
 - End to end: at least one complete sign-in → financial profile → wishlist funding → confirmed purchase → updated report journey on each supported native platform.
 
 ## R2 and later

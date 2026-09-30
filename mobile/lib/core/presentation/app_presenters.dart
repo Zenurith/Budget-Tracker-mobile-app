@@ -5,6 +5,9 @@ import 'presenter.dart';
 import '../../features/auth/presenter/auth_presenter.dart';
 import '../../features/overview/presenter/overview_presenter.dart';
 import '../../features/transactions/presenter/transaction_presenter.dart';
+import '../../features/transactions/presenter/history_presenter.dart';
+import '../../features/planning/model/planning_repository.dart';
+import '../../features/planning/presenter/planning_presenter.dart';
 import '../../features/budgets/presenter/budget_presenter.dart';
 import '../../features/categories/presenter/category_presenter.dart';
 
@@ -13,33 +16,60 @@ class AppPresenters {
   final AuthPresenter auth;
   final OverviewPresenter overview;
   final TransactionPresenter transactions;
+  final HistoryPresenter history;
+  final PlanningPresenter planning;
   final BudgetPresenter budgets;
   final CategoryPresenter categories;
   final List<StreamSubscription<Object?>> _subscriptions = [];
-  String? _accountId;
+  Account? _account;
+  final ExportDestination? exportDestination;
   AppPresenters({
     required AuthRepository authRepository,
     required OverviewRepository overviewRepository,
     required TransactionRepository transactionRepository,
     required BudgetRepository budgetRepository,
     required CategoryRepository categoryRepository,
+    required PlanningRepository planningRepository,
+    this.exportDestination,
     DateTime Function()? now,
   }) : auth = AuthPresenter(authRepository),
        overview = OverviewPresenter(overviewRepository, now: now),
        transactions = TransactionPresenter(transactionRepository),
+       history = HistoryPresenter(transactionRepository, now: now),
+       planning = PlanningPresenter(planningRepository, now: now),
        budgets = BudgetPresenter(budgetRepository),
        categories = CategoryPresenter(categoryRepository) {
     _subscriptions.add(
       auth.states.listen((state) {
-        if (_accountId == state.account?.id) return;
-        _accountId = state.account?.id;
+        if (identical(_account, state.account)) return;
+        final changedOwner = _account?.id != state.account?.id;
+        _account = state.account;
         unawaited(overview.setAccount(state.account));
+        if (changedOwner) {
+          unawaited(history.setAccount(state.account, overview.month));
+          unawaited(planning.setAccount(state.account, overview.month));
+        }
       }),
     );
-    for (final presenter in [transactions, budgets, categories]) {
+    var historyMonth = overview.month;
+    _subscriptions.add(
+      overview.states.listen((state) {
+        if (historyMonth != state.month) {
+          historyMonth = state.month;
+          unawaited(history.showMonth(state.month));
+        }
+      }),
+    );
+    for (final effects in [
+      transactions.effects,
+      budgets.effects,
+      categories.effects,
+      planning.effects,
+    ]) {
       _subscriptions.add(
-        presenter.effects.listen((effect) {
+        effects.listen((effect) {
           if (effect is DataChanged) {
+            unawaited(history.reload());
             unawaited(
               effect.month == null
                   ? overview.reload()
@@ -58,6 +88,8 @@ class AppPresenters {
     auth.dispose();
     overview.dispose();
     transactions.dispose();
+    history.dispose();
+    planning.dispose();
     budgets.dispose();
     categories.dispose();
   }

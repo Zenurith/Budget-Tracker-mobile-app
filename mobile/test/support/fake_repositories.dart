@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:pocketwise/core/model/contracts.dart';
 import 'package:pocketwise/core/presentation/app_presenters.dart';
 import 'package:pocketwise/models/finance.dart';
+import 'package:pocketwise/features/planning/model/planning_repository.dart';
 
 const testAccount = Account(
   id: 'alex',
@@ -62,6 +63,35 @@ class FakeRepositories
     account = null;
   }
 
+  int profileUpdates = 0, exports = 0;
+  Completer<Account>? profileGate;
+  Completer<Json>? exportGate;
+  @override
+  Future<Account> updateProfile(String name) async {
+    profileUpdates++;
+    check();
+    if (profileGate != null) return account = await profileGate!.future;
+    final current = account!;
+    return account = Account(
+      id: current.id,
+      name: name,
+      email: current.email,
+      currency: current.currency,
+    );
+  }
+
+  @override
+  Future<Json> exportData() async {
+    exports++;
+    check();
+    if (exportGate != null) return exportGate!.future;
+    return {
+      'schema_version': 1,
+      'account': {'name': account!.name},
+      'transactions': [],
+    };
+  }
+
   @override
   Future<MonthlySnapshot> loadMonth(DateTime month) async {
     loads++;
@@ -85,6 +115,16 @@ class FakeRepositories
       }),
       [],
     );
+  }
+
+  EntryFilter? lastFilter;
+  Future<EntryPage> Function(EntryFilter, int)? onSearch;
+  @override
+  Future<EntryPage> searchEntries(EntryFilter filter, int page) async {
+    check();
+    lastFilter = filter;
+    if (onSearch != null) return onSearch!(filter, page);
+    return EntryPage(snapshot.entries, snapshot.entries.length);
   }
 
   @override
@@ -114,7 +154,10 @@ class FakeRepositories
   @override
   Future<void> saveCategory(CategoryDraft draft, {String? id}) async {
     check();
+    savedCategory = draft;
   }
+
+  CategoryDraft? savedCategory;
 
   @override
   Future<void> deleteCategory(String id) async {
@@ -123,11 +166,67 @@ class FakeRepositories
   }
 }
 
-AppPresenters testPresenters(FakeRepositories repository) => AppPresenters(
+AppPresenters testPresenters(
+  FakeRepositories repository, {
+  ExportDestination? exportDestination,
+  PlanningRepository? planningRepository,
+}) => AppPresenters(
   authRepository: repository,
   overviewRepository: repository,
   transactionRepository: repository,
   budgetRepository: repository,
   categoryRepository: repository,
+  planningRepository: planningRepository ?? FakePlanningRepository(),
+  exportDestination: exportDestination,
   now: () => DateTime(2026, 9),
 );
+
+class FakePlanningRepository implements PlanningRepository {
+  @override
+  Future<List<Entry>> expenses(DateTime month) async => [];
+  Json data = {
+    'revision': 0,
+    'profile': null,
+    'debts': [],
+    'commitments': [],
+    'occurrences': [],
+    'missing_inputs': ['Review your profile.'],
+  };
+  String? failure;
+  Json? savedProfile, savedSchedule, lastPayment;
+  int payments = 0;
+  Completer<Json>? loadGate;
+  Completer<void>? paymentGate;
+  @override
+  Future<Json> load(DateTime month) async {
+    if (failure != null) throw StateError(failure!);
+    return loadGate == null ? data : await loadGate!.future;
+  }
+
+  @override
+  Future<void> saveProfile(Json draft) async {
+    savedProfile = draft;
+  }
+
+  @override
+  Future<void> saveSchedule(String kind, Json draft, {String? id}) async {
+    savedSchedule = draft;
+  }
+
+  @override
+  Future<void> deleteSchedule(String kind, String id, int revision) async {}
+  @override
+  Future<void> pay(String occurrenceId, Json payment) async {
+    payments++;
+    lastPayment = payment;
+    if (paymentGate != null) await paymentGate!.future;
+    if (failure != null) throw StateError(failure!);
+  }
+
+  @override
+  Future<void> unlink(
+    String occurrenceId,
+    String transactionId,
+    int revision,
+  ) async {}
+}

@@ -1,3 +1,4 @@
+import 'dart:convert';
 import '../../../core/model/contracts.dart';
 import '../../../core/presentation/presenter.dart';
 
@@ -32,6 +33,45 @@ class AuthPresenter extends Presenter<AuthState> {
   String? validatePassword(String? value, bool register) =>
       InputRules.password(value, register: register);
   void clearError() => emit(AuthState(account: state.account));
+  Future<bool> updateProfile(String name) async {
+    if (state.busy || state.account == null || disposed) return false;
+    final account = state.account;
+    final error =
+        validateName(name) ??
+        (name.trim().length > 80 ? 'Use at most 80 characters' : null);
+    if (error != null) {
+      emit(AuthState(account: account, error: error));
+      return false;
+    }
+    emit(AuthState(account: account, busy: true));
+    try {
+      final updated = await _repository.updateProfile(name.trim());
+      emit(AuthState(account: updated));
+      return !disposed;
+    } catch (error) {
+      emit(AuthState(account: account, error: error.toString()));
+      return false;
+    }
+  }
+
+  Future<bool> exportData(ExportDestination destination) async {
+    if (state.busy || state.account == null || disposed) return false;
+    final account = state.account;
+    emit(AuthState(account: account, busy: true));
+    try {
+      final data = await _repository.exportData();
+      if (disposed) return false;
+      final saved = await destination.save(
+        const JsonEncoder.withIndent('  ').convert(data),
+      );
+      emit(AuthState(account: account));
+      return saved && !disposed;
+    } catch (error) {
+      emit(AuthState(account: account, error: error.toString()));
+      return false;
+    }
+  }
+
   Future<bool> authenticate(AuthInput input) async {
     if (state.busy || state.starting || disposed) return false;
     final currencyError = InputRules.currencies.contains(input.currency)

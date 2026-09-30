@@ -8,7 +8,7 @@ Pocketwise helps individuals understand their daily spending, meet existing comm
 
 **Required architecture: Model–View–Presenter (MVP).** In these documents, MVP always names the architecture. **Release 1 (R1)** names the first product release. The previous MVC architecture and old first-release scope are superseded by this document.
 
-Stack: Flutter client, Python/FastAPI API and calculation services, MongoDB production database. SQLite remains a development-only repository. The existing code is a prototype, not yet an implementation of the complete R1 requirements or the target MVP architecture.
+Stack: Flutter client, Python/FastAPI API and calculation services, Supabase Postgres production database. SQLite remains a development-only repository. The existing code is a prototype, not yet an implementation of the complete R1 requirements or the target MVP architecture.
 
 Confirmed product defaults: country-neutral behavior, explicit user-selected currency, and English UI. The personal DSR estimate is labelled net income basis; DTI is labelled gross income basis. No country-specific tax rules or lender thresholds are inferred. Wishlist readiness uses existing saved money only; forecasts provide target dates. R1 supports explicitly listed two-decimal currencies; currency conversion is outside R1.
 

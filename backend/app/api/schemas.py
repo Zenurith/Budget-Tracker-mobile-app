@@ -1,6 +1,6 @@
 from datetime import date
 from typing import Literal
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 
 from ..domain.commands import Currency
@@ -24,6 +24,18 @@ class Login(BaseModel):
 
 class Refresh(BaseModel):
     refresh_token: str
+
+
+class UpdateProfile(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    name: str = Field(min_length=1, max_length=80)
+
+    @field_validator('name')
+    @classmethod
+    def clean_name(cls, value):
+        if not value.strip():
+            raise ValueError('Name cannot be blank')
+        return value.strip()
 
 
 class Transaction(BaseModel):

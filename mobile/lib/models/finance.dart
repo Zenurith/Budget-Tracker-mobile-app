@@ -34,11 +34,13 @@ class FinanceCategory {
 }
 
 class Entry {
+  final String? commitmentOccurrenceId;
   final String id, type, categoryId, note, paymentMethod, source;
   final int amount;
   final DateTime date;
   Entry.fromJson(Json j)
-    : id = j['id'] ?? '',
+    : commitmentOccurrenceId = j['commitment_occurrence_id'],
+      id = j['id'] ?? '',
       type = j['type'],
       categoryId = j['category_id'],
       note = j['note'] ?? '',

@@ -1,5 +1,6 @@
 """Dependency gates and domain behavior with no framework/storage adapters."""
 import ast
+from contextlib import contextmanager
 import hashlib
 import sys
 from copy import deepcopy
@@ -36,6 +37,15 @@ def test_domain_imports_only_standard_library_and_domain_modules():
 class MemoryRepository:
     def __init__(self):
         self.docs = {}
+
+    @contextmanager
+    def atomic(self, owner):
+        previous = deepcopy(self.docs)
+        try:
+            yield self
+        except BaseException:
+            self.docs = previous
+            raise
 
     def find(self, collection, **query):
         return [deepcopy(doc) for (name, _), doc in self.docs.items()

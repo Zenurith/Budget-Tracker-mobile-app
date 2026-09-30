@@ -2,13 +2,27 @@
 
 Status: design for Release 1, not a claim of implemented endpoints. The running prototype's `/docs` describes its current API. See [STATUS.md](STATUS.md) for the gap.
 
+## Implemented planning contract
+
+Implemented: `GET/PUT /financial-profile`, `GET/POST /debts`, `PUT/DELETE /debts/{id}`, equivalent `/commitments` routes, `GET /commitment-occurrences?start=&end=`, `POST /commitment-occurrences/{id}/payments`, and `DELETE /commitment-occurrences/{id}/payments/{transaction_id}`. `GET /planning?start=&end=` returns the plan and occurrences from one aggregate read. The generated API `/docs` is authoritative for field names; the target entity tables below describe later capabilities as well.
+
+The existing private `pocketwise.documents` table stores one `planning` document per owner containing revision, profile, debt/bill schedules, payment links and payment operation results. Occurrences are derived with stable IDs; reading does not post transactions. Mutations require `expected_revision` (query parameter for deletes). Payments also require `operation_id`: same key/body returns the saved result; changed body conflicts. Expense creation/linking, plan changes and operation results commit or roll back together. A link can be removed without deleting its expense; unlink first before editing/deleting that expense. Paid history protects schedule terms and effective dates.
+
+Profile currency matches the account; timezone must be explicitly supplied. Gross/net missing values differ from zero; variable income may use a declared monthly estimate with notes. Debt-list confirmation is unknown, complete or none. Debt changes invalidate review; review age is flagged after 30 days. Required debt payment and optional extra payment remain separate. Credit cards use an explicitly confirmed statement-required payment. No ratio is calculated yet. Queries are limited to 367 days and 5,000 occurrences. Before profile setup, due-date status provisionally uses UTC.
+
+Personal JSON export includes planning, excluding internal operation replay records; account deletion removes planning. Multi-record protected funding and cash reconciliation are still future work.
+
 ## Implemented onboarding currency contract
 
 `POST /auth/register` requires `currency` alongside name, email and password. The local-only `POST /auth/demo` requires a JSON body such as `{"currency":"USD"}`. Both accept EUR, GBP, MYR, SGD or USD, with no default; omitted, null or unsupported currency values return HTTP 422 before any account/session/sample data is written. Clients using the former implicit MYR default must now send a currency. Login and existing accounts are unchanged.
 
-Demo amounts are illustrative minor-unit values in the chosen currency, not converted amounts or local cost estimates. Demo creation remains disabled in MongoDB mode.
+Demo amounts are illustrative minor-unit values in the chosen currency, not converted amounts or local cost estimates. Demo creation remains disabled in Supabase Postgres mode.
 
 ## Shared conventions
+
+Implemented tracking additions: `GET /transactions` combines inclusive `start`/`end`, `min_amount`/`max_amount` (integer minor units, zero allowed), category/type, and `q` matching notes or category names. Reversed dates or amount ranges return 422. Results have stable date/created-at/ID ordering and page/page-size metadata; pages are live reads, not a fixed snapshot during concurrent edits. `GET /reports/summary` now includes `review` with period status, entry/day counts, recorded spending change from the prior month, prior entry count and independent budget variances. Coverage is explicitly unknown beyond recorded entries. Later debt and goal metrics are not fabricated.
+
+The following account endpoints are implemented: `PUT /auth/me` accepts only `{"name":"New name"}` (trimmed, nonblank, maximum 80 characters); extra fields, including currency, email and owner ID, are rejected. `GET /auth/me/export` returns a JSON attachment with `schema_version: 1`, UTC `exported_at`, `money_unit: "minor_units"`, public `account`, all owned `transactions` and `budgets`, and `categories` including default definitions. Exports are not paginated or limited to the selected month. Authentication is required, responses use `Cache-Control: no-store`, and password hashes/session records are excluded. Export reads are not yet a transactionally consistent point-in-time backup when another client writes concurrently.
 
 - Public IDs are opaque strings; database `_id` is internal. Every personal record has `id`, `user_id`, `created_at`, `updated_at` and integer `revision` unless immutable.
 - The server derives user_id from the authenticated session and checks ownership of all referenced records.
@@ -77,4 +91,4 @@ Public exceptions to bearer auth: health, registration/login, reset request/conf
 
 For new purchase recording, transaction creation, reservation consumption, item transition, snapshot adjustment, revision advancement and idempotency result storage succeed or fail together. Readiness quotes are invalid after any relevant revision change; they are not authorization to bypass a fresh invariant check.
 
-Funding operations are unavailable offline. A client request timeout is an unknown result, not proof of failure: retry the same key or retrieve its status. A changed request requires a new key. The already-reconciled path uses an explicit reconciled-through marker to avoid reducing cash twice whether it links an existing expense or records a missing one. Test concurrent allocations and all partial-failure points against actual MongoDB transactions before release.
+Funding operations are unavailable offline. A client request timeout is an unknown result, not proof of failure: retry the same key or retrieve its status. A changed request requires a new key. The already-reconciled path uses an explicit reconciled-through marker to avoid reducing cash twice whether it links an existing expense or records a missing one. Test concurrent allocations and all partial-failure points against actual Supabase Postgres transactions before release.

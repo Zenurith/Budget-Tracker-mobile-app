@@ -90,7 +90,9 @@ class Api {
     if (response.statusCode == 401 &&
         retry &&
         refreshToken != null &&
-        !path.startsWith('/auth/')) {
+        (!path.startsWith('/auth/') ||
+            path == '/auth/me' ||
+            path == '/auth/me/export')) {
       _refreshing ??= _refresh();
       try {
         await _refreshing;

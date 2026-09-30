@@ -1,8 +1,8 @@
 # Pocketwise
 
-A personal budget tracker built with Flutter, FastAPI and MongoDB support. The revised [Release 1 requirements](skills_files/budget_tracker_requirements.md) require **Model–View–Presenter (MVP)** architecture, a country-neutral DSR/DTI financial helper and a guilt-free wishlist funded only by saved money.
+A personal budget tracker built with Flutter, FastAPI and Supabase Postgres support. The revised [Release 1 requirements](skills_files/budget_tracker_requirements.md) require **Model–View–Presenter (MVP)** architecture, a country-neutral DSR/DTI financial helper and a guilt-free wishlist funded only by saved money.
 
-The runnable tracking prototype now uses feature presenters with tested repository boundaries and a layered backend. The financial helper and wishlist are **specified but not implemented**; see [current status](docs/STATUS.md).
+The runnable tracking prototype now uses feature presenters with tested repository boundaries and a layered backend. Financial profiles, debts and recurring bills are available through **Settings → Financial plan** (also linked from Budgets). Financial-helper calculations and wishlist are **specified but not implemented**; see [current status](docs/STATUS.md).
 
 ## Run locally
 
@@ -63,24 +63,39 @@ flutter run --dart-define=API_URL=http://YOUR_LAN_IP:8000
 
 Bind the development API to `0.0.0.0` when using a physical device. Release builds should use HTTPS. Browser CORS defaults permit port 5173; update `CORS_ORIGINS` for other origins.
 
-## MongoDB
+## Supabase
 
-With Docker Compose installed, set `JWT_SECRET` to a random value of at least 32 characters and run:
+1. Create a Supabase project and run [`supabase/migrations/202609300001_documents.sql`](supabase/migrations/202609300001_documents.sql) once in its SQL Editor.
+2. Under **Connect**, copy the **Session pooler** Postgres URI (port 5432). Replace the password placeholder with your URL-encoded database password.
+3. Set these values in `backend/.env`:
 
-```sh
-export JWT_SECRET="$(python3 -c 'import secrets; print(secrets.token_urlsafe(48))')"
-docker compose up --build
+```dotenv
+DATABASE_MODE=supabase
+SUPABASE_DB_URL=postgresql://postgres.PROJECT_REF:ENCODED_PASSWORD@POOLER_HOST:5432/postgres
+JWT_SECRET=YOUR_RANDOM_SECRET_AT_LEAST_32_CHARACTERS
 ```
 
-The Compose database is exposed on `127.0.0.1:27017` for local tools and persists in a named volume. This is a development setup, without production TLS or MongoDB authentication. Demo creation is disabled in MongoDB mode; create a real account instead.
+Generate the JWT secret using the command in `.env.example`. Install the updated backend requirements and start the API using the local instructions above. Or, from the repository root, run:
 
-To inspect it in MongoDB Compass, choose **Add New Connection**, enter `mongodb://127.0.0.1:27017`, name the connection **Pocketwise local**, and select **Save & Connect**. No database username/password is required for this local configuration. The API creates the `pocketwise` collections and indexes at startup; register in the app and add a transaction to see your data. The API container continues to use `mongodb://mongo:27017` internally.
+```sh
+docker compose --env-file backend/.env up --build
+```
 
-Stop any separately running API before starting Compose to free port 8000. Check `http://localhost:8000/health` for `{"status":"ok","storage":"mongo"}`. Keep the same `JWT_SECRET` across restarts to preserve sessions. Existing SQLite data is not automatically copied to MongoDB.
+Compose runs the API against hosted Supabase; it no longer starts MongoDB. Check `http://localhost:8000/health` for `{"status":"ok","storage":"supabase"}`. This endpoint reports configuration, not a continuous database connectivity probe. Stop any separately running API first to free port 8000.
 
-Alternatively, set `DATABASE_MODE=mongo`, `MONGODB_URI`, `MONGODB_DATABASE`, and `JWT_SECRET` in `backend/.env` and run the API directly.
+The backend uses a TLS Postgres connection and a small connection pool. See [Supabase's connection guide](https://supabase.com/docs/guides/database/connecting-to-postgres). Keep the database URI on the backend only. It is a database credential, not a publishable or service-role API key.
+
+FastAPI still handles login, password hashing, JWT sessions and user ownership. Supabase Auth is not enabled. The current document repository maps to JSONB records in the private `pocketwise.documents` table, with unique email/budget indexes and atomic session consumption. The migration restricts `anon`/`authenticated` access and enables RLS without client policies; connect as the database owner through the backend. Do not expose this schema through the Data API. Dedicated relational tables and multi-record funding transactions remain future work.
+
+Demo creation is available only in local SQLite mode. Existing SQLite/MongoDB records are **not automatically migrated**. Switching back to `DATABASE_MODE=local` retains your existing SQLite data. Keep the same `JWT_SECRET` across restarts to preserve sessions.
 
 API documentation: http://localhost:8000/docs
+
+The Supabase Table Editor may initially show the empty `public` schema. Select **pocketwise** in its schema dropdown to see **documents**. The current prototype stores entity types as JSONB records distinguished by the `collection` column, rather than separate account/transaction/budget tables. This private schema is accessed through FastAPI; it is intentionally not exposed directly to client roles.
+
+Transactions support combined search, type/category, date-range and amount filters with 50-record pages. Use **Date & amount** for ranges spanning multiple months, **Load more transactions** for the next page, or **Clear filters** to return to the selected month. Settings lets you choose icons and colors for custom categories. Reports now includes a monthly spending/budget review, with incomplete-period and recording-coverage labels.
+
+In **Settings**, use **Edit profile** to update your name or **Export my data** to save `pocketwise-data.json`. The export includes your profile, all transaction history, budgets and category definitions; money amounts are integer minor units in your account currency. Password hashes and authentication sessions are excluded. Browsers start a download; Android/iOS use a file-save dialog. Native export behavior still needs device verification. Password reset remains planned.
 
 ## Project guide
 

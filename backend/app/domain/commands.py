@@ -26,6 +26,11 @@ class Refresh:
 
 
 @dataclass(frozen=True, kw_only=True)
+class UpdateProfile:
+    name: str
+
+
+@dataclass(frozen=True, kw_only=True)
 class Transaction:
     amount: int
     type: Literal['income', 'expense']

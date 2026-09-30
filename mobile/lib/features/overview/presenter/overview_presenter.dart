@@ -65,6 +65,19 @@ class OverviewPresenter extends Presenter<OverviewState> {
   }
 
   Future<void> setAccount(Account? account) async {
+    if (account != null && account.id == user?.id) {
+      emit(
+        OverviewState(
+          account: account,
+          month: month,
+          data: state.data,
+          busy: busy,
+          stale: state.stale,
+          error: error,
+        ),
+      );
+      return;
+    }
     _request++;
     emit(OverviewState(account: account, month: _month(_now())));
     if (account != null) await reload();
@@ -102,12 +115,12 @@ class OverviewPresenter extends Presenter<OverviewState> {
     try {
       final result = await _repository.loadMonth(selected);
       if (request != _request || disposed) return;
-      emit(OverviewState(account: account, month: selected, data: result));
+      emit(OverviewState(account: user, month: selected, data: result));
     } catch (error) {
       if (request != _request || disposed) return;
       emit(
         OverviewState(
-          account: account,
+          account: user,
           month: selected,
           data: previous,
           stale: true,

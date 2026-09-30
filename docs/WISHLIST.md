@@ -92,7 +92,7 @@ Label every forecast “if you save [amount] monthly”; changing a forecast nev
 6. For a payment already included in a reconciled cash snapshot, use the reconciled path: link its existing expense, or explicitly create the missing expense with `baseline_effect=already_reconciled`. Require a newly confirmed snapshot that includes the payment, consume the allocation without deducting cash again, and mark the item `purchased` with readiness `not_assessed` if no pre-purchase quote existed. Validate owner, currency, amount and that it has not funded another item.
 7. Editing/deleting a linked purchase requires a coordinated reversal/reconciliation flow; reject an ordinary transaction edit/delete that would orphan a reservation. A real refund is a separate linked actual event, not a silent history rewrite. Returned funds become unallocated after confirmation; do not automatically re-reserve them.
 
-MongoDB funding/purchase writes require transactions on a replica set or an equivalently proven atomic aggregate design. The current development Compose configuration does not satisfy that requirement yet. The implementation plan must upgrade it before these features are claimed complete.
+Supabase funding/purchase writes require Postgres transactions or an equivalently proven atomic aggregate design. Postgres supports transactions, but the current repository only guarantees single-statement atomic writes. Multi-record funding transactions must be implemented and verified before these features are claimed complete.
 
 ## Worked examples and acceptance cases
 

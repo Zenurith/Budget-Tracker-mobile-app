@@ -1,10 +1,12 @@
 from datetime import date
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from .schemas import Budget, Category, DemoRequest, Login, ParseRequest, Refresh, Register, Transaction
+from .schemas import Budget, Category, DemoRequest, Login, ParseRequest, Refresh, Register, Transaction, UpdateProfile
 from ..domain import commands, finance
 from ..domain.demo import demo as seed_demo
 from ..infrastructure.rate_limit import AuthRateLimiter
+from . import planning_schemas as ps
+from ..domain import planning, planning_commands as pc
 
 
 def build_router(auth, mode):
@@ -48,6 +50,16 @@ def build_router(auth, mode):
     def me(user=Depends(current)):
         return auth.me(user=user)
 
+    @router.put('/auth/me')
+    def update_profile(data: UpdateProfile, user=Depends(current), db=Depends(repo)):
+        return auth.update_profile(commands.UpdateProfile(**data.model_dump()), user, db)
+
+    @router.get('/auth/me/export')
+    def export_data(response: Response, user=Depends(current), db=Depends(repo)):
+        response.headers['Cache-Control'] = 'no-store'
+        response.headers['Content-Disposition'] = 'attachment; filename="pocketwise-data.json"'
+        return auth.export_data(user, db)
+
     @router.delete('/auth/me', status_code=204)
     def delete_account(user=Depends(current), db=Depends(repo)):
         return auth.delete_account(user=user, db=db)
@@ -55,6 +67,66 @@ def build_router(auth, mode):
     @router.get('/categories')
     def list_categories(user=Depends(current), db=Depends(repo)):
         return finance.list_categories(user=user, db=db)
+
+    @router.get('/financial-profile')
+    def financial_profile(user=Depends(current), db=Depends(repo)):
+        return planning.get_plan(user, db)
+
+    @router.get('/planning')
+    def planning_overview(start: date, end: date, user=Depends(current), db=Depends(repo)):
+        return planning.overview(start, end, user, db)
+
+    @router.put('/financial-profile')
+    def save_financial_profile(data: ps.Profile, user=Depends(current), db=Depends(repo)):
+        values = data.model_dump()
+        values['income_sources'] = tuple(pc.IncomeSource(**s) for s in values['income_sources'])
+        return planning.save_profile(pc.FinancialProfile(**values), user, db)
+
+    @router.get('/debts')
+    def debts(user=Depends(current), db=Depends(repo)):
+        plan = planning.get_plan(user, db)
+        return {'items': plan['debts'], 'revision': plan['revision']}
+
+    @router.post('/debts', status_code=201)
+    def add_debt(data: ps.Schedule, user=Depends(current), db=Depends(repo)):
+        return planning.save_schedule('debts', pc.Schedule(**data.model_dump()), user, db)
+
+    @router.put('/debts/{id}')
+    def edit_debt(id: str, data: ps.Schedule, user=Depends(current), db=Depends(repo)):
+        return planning.save_schedule('debts', pc.Schedule(**data.model_dump()), user, db, id)
+
+    @router.delete('/debts/{id}')
+    def delete_debt(id: str, expected_revision: int=Query(ge=0), user=Depends(current), db=Depends(repo)):
+        return planning.delete_schedule('debts', id, expected_revision, user, db)
+
+    @router.get('/commitments')
+    def commitments(user=Depends(current), db=Depends(repo)):
+        plan = planning.get_plan(user, db)
+        return {'items': plan['commitments'], 'revision': plan['revision']}
+
+    @router.post('/commitments', status_code=201)
+    def add_commitment(data: ps.Schedule, user=Depends(current), db=Depends(repo)):
+        return planning.save_schedule('commitments', pc.Schedule(**data.model_dump()), user, db)
+
+    @router.put('/commitments/{id}')
+    def edit_commitment(id: str, data: ps.Schedule, user=Depends(current), db=Depends(repo)):
+        return planning.save_schedule('commitments', pc.Schedule(**data.model_dump()), user, db, id)
+
+    @router.delete('/commitments/{id}')
+    def delete_commitment(id: str, expected_revision: int=Query(ge=0), user=Depends(current), db=Depends(repo)):
+        return planning.delete_schedule('commitments', id, expected_revision, user, db)
+
+    @router.get('/commitment-occurrences')
+    def occurrences(start: date, end: date, user=Depends(current), db=Depends(repo)):
+        return planning.list_occurrences(start, end, user, db)
+
+    @router.post('/commitment-occurrences/{id}/payments')
+    def record_payment(id: str, data: ps.Payment, user=Depends(current), db=Depends(repo)):
+        return planning.pay(id, pc.Payment(**data.model_dump()), user, db)
+
+    @router.delete('/commitment-occurrences/{id}/payments/{transaction_id}')
+    def unlink_payment(id: str, transaction_id: str, expected_revision: int=Query(ge=0), user=Depends(current), db=Depends(repo)):
+        return planning.unlink(id, transaction_id, expected_revision, user, db)
 
     @router.post('/categories', status_code=201)
     def add_category(data: Category, user=Depends(current), db=Depends(repo)):

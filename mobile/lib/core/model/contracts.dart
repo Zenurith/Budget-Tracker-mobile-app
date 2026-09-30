@@ -103,6 +103,13 @@ abstract interface class AuthRepository {
   Future<Account> authenticate(AuthInput input);
   Future<void> logout();
   Future<void> deleteAccount();
+  Future<Account> updateProfile(String name);
+  Future<Json> exportData();
+}
+
+abstract interface class ExportDestination {
+  /// Returns false if the user cancels the save dialog.
+  Future<bool> save(String contents);
 }
 
 abstract interface class OverviewRepository {
@@ -110,9 +117,33 @@ abstract interface class OverviewRepository {
 }
 
 abstract interface class TransactionRepository {
+  Future<EntryPage> searchEntries(EntryFilter filter, int page);
   Future<ParsedEntry> parse(String text, DateTime referenceDate);
   Future<void> saveEntry(EntryDraft draft, {String? id});
   Future<void> deleteEntry(String id);
+}
+
+class EntryFilter {
+  final DateTime start, end;
+  final String query, type;
+  final String? categoryId;
+  final int? minAmount, maxAmount;
+  const EntryFilter({
+    required this.start,
+    required this.end,
+    this.query = '',
+    this.type = 'all',
+    this.categoryId,
+    this.minAmount,
+    this.maxAmount,
+  });
+}
+
+class EntryPage {
+  final List<Entry> entries;
+  final int total;
+  EntryPage(List<Entry> entries, this.total)
+    : entries = List.unmodifiable(entries);
 }
 
 abstract interface class BudgetRepository {

@@ -10,6 +10,9 @@ import '../main.dart';
 import '../models/finance.dart';
 import '../widgets/charts.dart';
 import 'entry_editor.dart';
+import 'profile_editor.dart';
+import 'transaction_filters.dart';
+import 'planning_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final AppPresenters presenters;
@@ -165,7 +168,11 @@ class _HomeScreenState extends State<HomeScreen> {
                               if (page != 4) heading(),
                               const SizedBox(height: 26),
                               if (page == 0) dashboard(),
-                              if (page == 1) transactions(),
+                              if (page == 1)
+                                PresenterBuilder(
+                                  presenter: widget.presenters.history,
+                                  builder: (_, state) => transactions(),
+                                ),
                               if (page == 2) budgets(),
                               if (page == 3) reports(),
                               if (page == 4) settings(),
@@ -388,6 +395,51 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget dashboard() => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
+      PresenterBuilder(
+        presenter: widget.presenters.planning,
+        builder: (context, state) {
+          final unpaid = state
+              .items('occurrences')
+              .where(
+                (item) =>
+                    item['remaining_amount'] == null ||
+                    (item['remaining_amount'] as int) > 0,
+              )
+              .take(5)
+              .toList();
+          if (unpaid.isEmpty) return const SizedBox.shrink();
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 22),
+            child: panel(
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    'Planned obligations · ${DateFormat('MMMM yyyy').format(state.month)}',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  if (state.busy) const LinearProgressIndicator(),
+                  if (state.error != null)
+                    const Text(
+                      'Plan could not refresh; these dates may be out of date.',
+                    ),
+                  for (final item in unpaid)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 10),
+                      child: Text(
+                        '${item['due_date']} · ${item['name']} · ${item['remaining_amount'] == null ? 'Amount unknown' : money(item['remaining_amount'], c.currency)} unpaid${item['overdue'] == true ? ' · overdue' : ''}',
+                      ),
+                    ),
+                  TextButton(
+                    onPressed: openPlanning,
+                    child: const Text('View financial plan'),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
       LayoutBuilder(
         builder: (context, size) {
           final cards = [
@@ -765,12 +817,25 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget transactions() {
-    final visible = c.filteredEntries(
-      search: search,
-      type: filter,
-      categoryId: categoryFilter,
+  void applyHistoryFilters() {
+    final h = widget.presenters.history;
+    final f = h.state.filter;
+    h.apply(
+      EntryFilter(
+        start: f.start,
+        end: f.end,
+        query: search,
+        type: filter,
+        categoryId: categoryFilter,
+        minAmount: f.minAmount,
+        maxAmount: f.maxAmount,
+      ),
     );
+  }
+
+  Widget transactions() {
+    final history = widget.presenters.history;
+    final visible = history.state.entries;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -808,7 +873,10 @@ class _HomeScreenState extends State<HomeScreen> {
             children: [
               TextField(
                 controller: searchField,
-                onChanged: (v) => setState(() => search = v),
+                onChanged: (v) {
+                  setState(() => search = v);
+                  applyHistoryFilters();
+                },
                 decoration: const InputDecoration(
                   hintText: 'Search notes or categories',
                   prefixIcon: Icon(Icons.search),
@@ -829,12 +897,17 @@ class _HomeScreenState extends State<HomeScreen> {
                             : 'Income',
                       ),
                       selected: filter == value,
-                      onSelected: (_) => setState(() => filter = value),
+                      onSelected: (_) {
+                        setState(() => filter = value);
+                        applyHistoryFilters();
+                      },
                     ),
                   PopupMenuButton<String>(
                     tooltip: 'Filter category',
-                    onSelected: (v) =>
-                        setState(() => categoryFilter = v == 'all' ? null : v),
+                    onSelected: (v) {
+                      setState(() => categoryFilter = v == 'all' ? null : v);
+                      applyHistoryFilters();
+                    },
                     itemBuilder: (_) => [
                       const PopupMenuItem(
                         value: 'all',
@@ -857,12 +930,74 @@ class _HomeScreenState extends State<HomeScreen> {
                 ],
               ),
               const SizedBox(height: 16),
+              Wrap(
+                spacing: 12,
+                runSpacing: 8,
+                children: [
+                  OutlinedButton.icon(
+                    icon: const Icon(Icons.tune),
+                    label: const Text('Date & amount'),
+                    onPressed: () async {
+                      final selected = await showDialog<EntryFilter>(
+                        context: context,
+                        builder: (_) => TransactionFilters(
+                          filter: history.state.filter,
+                          currency: c.currency,
+                        ),
+                      );
+                      if (selected != null) await history.apply(selected);
+                    },
+                  ),
+                  TextButton(
+                    onPressed: () {
+                      setState(() {
+                        search = '';
+                        filter = 'all';
+                        categoryFilter = null;
+                        searchField.clear();
+                      });
+                      history.apply(
+                        EntryFilter(
+                          start: DateTime(c.month.year, c.month.month),
+                          end: DateTime(c.month.year, c.month.month + 1, 0),
+                        ),
+                      );
+                    },
+                    child: const Text('Clear filters'),
+                  ),
+                ],
+              ),
               Text(
-                '${visible.length} transactions',
+                '${dateOf(history.state.filter.start)} – ${dateOf(history.state.filter.end)}',
+              ),
+              if (history.state.filter.minAmount != null ||
+                  history.state.filter.maxAmount != null)
+                Text(
+                  'Amount: ${history.state.filter.minAmount == null ? 'No minimum' : money(history.state.filter.minAmount!, c.currency)} – ${history.state.filter.maxAmount == null ? 'No maximum' : money(history.state.filter.maxAmount!, c.currency)}',
+                ),
+              const SizedBox(height: 16),
+              if (history.state.busy)
+                const LinearProgressIndicator(
+                  semanticsLabel: 'Loading transactions',
+                ),
+              if (history.state.error != null) ...[
+                Text(
+                  history.state.error!,
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
+                TextButton(
+                  onPressed: history.reload,
+                  child: const Text('Retry transactions'),
+                ),
+              ],
+              Text(
+                '${visible.length} of ${history.state.total} transactions',
                 style: const TextStyle(fontSize: 12, color: Color(0xFF7A857E)),
               ),
               const SizedBox(height: 8),
-              if (visible.isEmpty)
+              if (visible.isEmpty &&
+                  !history.state.busy &&
+                  history.state.error == null)
                 empty(
                   'Nothing here yet.',
                   'Try another filter or add a transaction.',
@@ -870,6 +1005,11 @@ class _HomeScreenState extends State<HomeScreen> {
                 )
               else
                 ...visible.map(entryRow),
+              if (visible.length < history.state.total)
+                OutlinedButton(
+                  onPressed: history.state.busy ? null : history.loadMore,
+                  child: const Text('Load more transactions'),
+                ),
             ],
           ),
         ),
@@ -982,6 +1122,12 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  void openPlanning() => Navigator.of(context).push(
+    MaterialPageRoute<void>(
+      builder: (_) => PlanningScreen(presenters: widget.presenters),
+    ),
+  );
+
   Widget budgets() => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
@@ -992,6 +1138,12 @@ class _HomeScreenState extends State<HomeScreen> {
           icon: const Icon(Icons.add),
           label: const Text('Set a budget'),
         ),
+      ),
+      const SizedBox(height: 12),
+      OutlinedButton.icon(
+        onPressed: openPlanning,
+        icon: const Icon(Icons.event_note),
+        label: const Text('Plan income, debts & bills'),
       ),
       const SizedBox(height: 22),
       panel(
@@ -1137,6 +1289,8 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget reports() => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
+      monthlyReview(),
+      const SizedBox(height: 22),
       adaptivePair(
         panel(SpendingChart(presenter: c)),
         panel(TrendChart(presenter: c)),
@@ -1160,6 +1314,68 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     ],
   );
+  Widget monthlyReview() {
+    final review = c.summary['review'] as Map?;
+    if (review == null) return const SizedBox.shrink();
+    final status = review['period_status'];
+    final budgets = (review['budget_variances'] as List).cast<Json>();
+    final change = review['expense_change'] as int;
+    return panel(
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Monthly review', style: Theme.of(context).textTheme.titleLarge),
+          const SizedBox(height: 12),
+          Text(
+            status == 'in_progress'
+                ? 'Month in progress · totals are partial'
+                : status == 'future'
+                ? 'Future month · entries may be planned'
+                : 'Month ended · recorded activity only',
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '${review['record_count']} entries across ${review['recorded_days']} days.',
+          ),
+          Text(review['coverage'] as String),
+          const SizedBox(height: 12),
+          Text(
+            'Recorded income: ${money(c.summary['income'] ?? 0, c.currency)}',
+          ),
+          Text(
+            'Recorded spending: ${money(c.summary['expenses'] ?? 0, c.currency)}',
+          ),
+          Text(
+            'Net recorded change: ${money(c.summary['net'] ?? 0, c.currency)}',
+          ),
+          if (review['previous_record_count'] == 0)
+            const Text(
+              'No previous-month entries are available for comparison.',
+            )
+          else
+            Text(
+              'Spending is ${money(change.abs(), c.currency)} ${change < 0 ? 'lower' : 'higher'} than ${review['previous_month']}. Compare only periods with similar recording coverage.',
+            ),
+          const SizedBox(height: 20),
+          Text('Budget review', style: Theme.of(context).textTheme.titleMedium),
+          const Text(
+            'Overall and category limits overlap; they are reviewed separately.',
+          ),
+          if (budgets.isEmpty)
+            const Padding(
+              padding: EdgeInsets.only(top: 8),
+              child: Text('No budgets set for this month.'),
+            ),
+          ...budgets.map((budget) => budgetRow(budget)),
+          const SizedBox(height: 12),
+          const Text(
+            'Debt ratios and savings/wishlist progress will appear when those modules are available.',
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget settings() => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
@@ -1178,7 +1394,67 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             const SizedBox(height: 8),
             Text(c.user?.email ?? ''),
+            const SizedBox(height: 12),
+            PresenterBuilder(
+              presenter: widget.presenters.auth,
+              builder: (context, state) => Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: state.busy
+                        ? null
+                        : () {
+                            widget.presenters.auth.clearError();
+                            showDialog<void>(
+                              context: context,
+                              barrierDismissible: false,
+                              builder: (_) => ProfileEditor(
+                                presenter: widget.presenters.auth,
+                              ),
+                            );
+                          },
+                    icon: const Icon(Icons.edit_outlined),
+                    label: const Text('Edit profile'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: state.busy
+                        ? null
+                        : () async {
+                            final destination =
+                                widget.presenters.exportDestination;
+                            if (destination == null) {
+                              message(
+                                'File export is unavailable on this device.',
+                              );
+                              return;
+                            }
+                            final saved = await widget.presenters.auth
+                                .exportData(destination);
+                            if (saved) {
+                              message('Your data export is ready.');
+                            } else if (widget.presenters.auth.state.error !=
+                                null) {
+                              message(widget.presenters.auth.state.error!);
+                            }
+                          },
+                    icon: const Icon(Icons.download_outlined),
+                    label: const Text('Export my data'),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Export your profile, transactions, budgets and categories as a JSON file.',
+            ),
             const SizedBox(height: 20),
+            OutlinedButton.icon(
+              onPressed: openPlanning,
+              icon: const Icon(Icons.event_note),
+              label: const Text('Financial plan'),
+            ),
+            const SizedBox(height: 12),
             Text('Account currency: ${c.currency}'),
             const SizedBox(height: 12),
             const Text(
@@ -1246,7 +1522,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           }
                         },
                         itemBuilder: (_) => const [
-                          PopupMenuItem(value: 'edit', child: Text('Rename')),
+                          PopupMenuItem(value: 'edit', child: Text('Edit')),
                           PopupMenuItem(value: 'delete', child: Text('Delete')),
                         ],
                       )
@@ -1294,6 +1570,8 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> categoryEditor([FinanceCategory? category]) async {
     final name = TextEditingController(text: category?.name ?? '');
     var type = category?.type ?? 'expense';
+    var icon = category?.icon ?? 'category';
+    var color = category?.colorHex ?? '#4D8B70';
     final presenter = widget.presenters.categories;
     await showDialog(
       context: context,
@@ -1301,30 +1579,97 @@ class _HomeScreenState extends State<HomeScreen> {
         presenter: presenter,
         builder: (context, state) => AlertDialog(
           title: Text(
-            category == null ? 'A category of your own' : 'Rename category',
+            category == null ? 'A category of your own' : 'Edit category',
           ),
           content: SizedBox(
             width: 360,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: name,
-                  maxLength: 40,
-                  decoration: const InputDecoration(labelText: 'Category name'),
-                ),
-                const SizedBox(height: 16),
-                DropdownButtonFormField<String>(
-                  initialValue: type,
-                  items: const [
-                    DropdownMenuItem(value: 'expense', child: Text('Expense')),
-                    DropdownMenuItem(value: 'income', child: Text('Income')),
-                  ],
-                  onChanged: category == null ? (v) => type = v! : null,
-                ),
-                if (state.error != null)
-                  Text(state.error!, style: const TextStyle(color: Colors.red)),
-              ],
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: name,
+                    maxLength: 40,
+                    decoration: const InputDecoration(
+                      labelText: 'Category name',
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  DropdownButtonFormField<String>(
+                    initialValue: type,
+                    items: const [
+                      DropdownMenuItem(
+                        value: 'expense',
+                        child: Text('Expense'),
+                      ),
+                      DropdownMenuItem(value: 'income', child: Text('Income')),
+                    ],
+                    onChanged: category == null ? (v) => type = v! : null,
+                  ),
+                  const SizedBox(height: 16),
+                  DropdownButtonFormField<String>(
+                    initialValue: icon,
+                    isExpanded: true,
+                    decoration: const InputDecoration(labelText: 'Icon'),
+                    items: {icon, ...categoryIcons.keys}
+                        .map(
+                          (value) => DropdownMenuItem(
+                            value: value,
+                            child: Row(
+                              children: [
+                                Icon(
+                                  categoryIcons[value] ??
+                                      Icons.category_rounded,
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(value.replaceAll('_', ' ')),
+                                ),
+                              ],
+                            ),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: state.busy ? null : (value) => icon = value!,
+                  ),
+                  const SizedBox(height: 16),
+                  DropdownButtonFormField<String>(
+                    initialValue: color,
+                    isExpanded: true,
+                    decoration: const InputDecoration(labelText: 'Color'),
+                    items: {color, ...categoryColors.keys}
+                        .map(
+                          (value) => DropdownMenuItem(
+                            value: value,
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.circle,
+                                  color: Color(
+                                    int.parse(
+                                      value.replaceFirst('#', 'FF'),
+                                      radix: 16,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(categoryColors[value] ?? value),
+                                ),
+                              ],
+                            ),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: state.busy ? null : (value) => color = value!,
+                  ),
+                  if (state.error != null)
+                    Text(
+                      state.error!,
+                      style: const TextStyle(color: Colors.red),
+                    ),
+                ],
+              ),
             ),
           ),
           actions: [
@@ -1340,8 +1685,8 @@ class _HomeScreenState extends State<HomeScreen> {
                         CategoryDraft(
                           name: name.text.trim(),
                           type: type,
-                          icon: category?.icon ?? 'category',
-                          color: category?.colorHex ?? '#4D8B70',
+                          icon: icon,
+                          color: color,
                         ),
                         id: category?.id,
                       );

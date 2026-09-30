@@ -28,11 +28,13 @@ These are explicit design choices that can be revised through the requirements, 
 
 ## Still unresolved before release
 
+On 2026-09-30 the user deferred password-reset email work. Account recovery remains an R1 requirement; do not select an email provider or claim the recovery flow is complete until that work resumes.
+
 | Question | Current evidence/default | When it must be resolved |
 |---|---|---|
 | Supported OS floor | Original requirements say Android 8+/iOS 13+; generated iOS project is 15.0 | Before native release/toolchain commitment |
-| Production deployment and data region | None selected; MongoDB + FastAPI required, local SQLite only for development | Before collecting production financial data |
-| Funding transaction implementation | Requires MongoDB replica-set transactions or an equivalent proven atomic aggregate | Before reservation/purchase implementation; upgrade local Compose as needed |
+| Production deployment and data region | None selected; Supabase Postgres + FastAPI required, local SQLite only for development | Before collecting production financial data |
+| Funding transaction implementation | Requires Postgres transactions or an equivalent proven atomic aggregate | Before reservation/purchase implementation |
 | Email reset provider | Not selected | Before completing R1 account recovery |
 | Offline store and conflict policy details | Stable operation IDs and visible conflict handling required; technology not selected | Before offline sync implementation |
 | Production web support | Web is currently a preview/demo target | Before advertising web as a supported production client |

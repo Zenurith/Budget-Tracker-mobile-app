@@ -6,24 +6,7 @@ services:
     environment:
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.5-flash-lite}
-      DATABASE_MODE: mongo
-      MONGODB_URI: mongodb://mongo:27017
-      MONGODB_DATABASE: pocketwise
+      DATABASE_MODE: supabase
+      SUPABASE_DB_URL: ${SUPABASE_DB_URL:?Set your Supabase Postgres connection string}
       JWT_SECRET: ${JWT_SECRET:?Set a random JWT_SECRET of at least 32 characters}
       CORS_ORIGINS: http://localhost:5173,http://127.0.0.1:5173
-    depends_on:
-      mongo:
-        condition: service_healthy
-  mongo:
-    image: mongo:8
-    ports:
-      - "127.0.0.1:27017:27017"
-    volumes:
-      - pocketwise-data:/data/db
-    healthcheck:
-      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-volumes:
-  pocketwise-data:

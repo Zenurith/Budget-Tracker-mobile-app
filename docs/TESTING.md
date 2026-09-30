@@ -1,6 +1,31 @@
 # Testing and verification
 
-## Commands
+## Financial profile and commitments checks on 2026-09-30 (macOS)
+
+- Backend: **90 passed, 3 skipped**, **92.93% coverage**. Tests cover missing versus zero income, explicit review, currency/timezone validation, recurrence dates, partial/existing payment links, owner isolation, stale revisions, retries and atomic rollback.
+- Live Supabase: **3 passed**. The new test verifies rollback after an expense write and concurrency across independent connection pools: one expense for same-key retries, and one winner for conflicting revision writes. Temporary records are cleaned up.
+- Flutter: **37 passed**; plain Dart: **22 passed**. Profile entry and confirmed partial-payment widgets, stable payment retry IDs, duplicate-click guards, stale-owner suppression and failed refresh after successful save are covered. Dashboard goldens remain unchanged. Analysis is clean.
+- Native devices, full-app accessibility, DSR/DTI and protected funding are not verified by these tests.
+
+## Core tracking completion checks on 2026-09-30 (macOS)
+
+- Backend: **80 passed, 2 skipped**, **95.22%** coverage. The skips are the opt-in Supabase tests; both passed in a separate live run.
+- Live Supabase now also checks category icon/color persistence, category-name searches, inclusive date/amount filtering across months, pagination and monthly review arithmetic. Temporary accounts and records are removed afterward.
+- Flutter: **31 passed**; plain Dart: **18 passed** using `dart test test/presenter_test.dart test/account_presenter_test.dart test/history_presenter_test.dart`. Tests cover stale filter responses, sign-out while loading, paging/retry, category appearance selection, amount validation and the filter dialog at 200% text size. Existing dashboard goldens passed unchanged.
+- Analysis is clean; web release build and Wasm compatibility dry run passed. `git diff --check` passed. Native device behavior and full-app 200% accessibility remain unverified.
+- Password recovery is deferred by the user's request; the spending/budget review does not claim the later debt-ratio, savings or wishlist modules are implemented.
+
+## Account editing and export verification on 2026-09-30 (macOS)
+
+- Backend local suite: **78 passed**, **95.16%** coverage (live tests opt in separately). New tests cover own-name editing, protected-field rejection, persistence through login, export of more than one page of history, cross-owner exclusion, removal of credentials/session data and authentication after account deletion.
+- Flutter: **25 tests passed**, including Settings editing/export, failure and retry, duplicate submissions, cancellation, disposal during export, token refresh for account endpoints and unchanged dashboard goldens.
+- Plain Dart: **15 presenter/dependency tests passed** using `dart test test/presenter_test.dart test/account_presenter_test.dart`.
+- Web release build and Wasm compatibility dry run succeeded. Native file-save dialogs remain unverified; the widget test uses a fake export destination.
+- Live Supabase: **2 integration tests passed** against `icgbteadskymmrrqqyiq` after applying the previously missing migration. Checks cover cross-connection persistence, category and overall-budget uniqueness, concurrent single-use sessions, API owner isolation, name/export persistence across separate API instances and account deletion. Temporary accounts/records are cleaned up. Read-only inspection confirmed RLS, the expected indexes and denied schema/table privileges for `anon`/`authenticated`. This is not verification of multi-record funding transactions.
+- Flutter analysis is clean. The file export uses `file_picker` 13.1.0, pinned with the resolved lockfile; native save dialogs still need device testing.
+- A fresh app instance loaded `backend/.env`, initialized the real Supabase repository and returned `{"status":"ok","storage":"supabase"}` from `/health`. A final count found zero documents after test cleanup. Local SQLite records were not migrated.
+
+## Test commands
 
 Backend (from `backend/`):
 
@@ -64,7 +89,7 @@ Windows uses `mobile/test/goldens/windows/`; other platforms retain the original
 - Flutter web release build succeeded, including the Wasm compatibility dry run. Native builds remain unverified.
 - At that revision, remaining migration work included backend auth infrastructure coupling, shared transport/domain request models and broader widget coverage. The backend boundaries were completed on 2026-09-29 (see above).
 
-These checks do not validate the unimplemented financial helper, wishlist or protected-funding model.
+These checks do not validate the unimplemented financial-helper calculations, wishlist or protected-funding model.
 
 ## Prototype verification on 2026-09-28 (before the revised architecture/features)
 
@@ -95,8 +120,19 @@ The results above apply to existing tracking and presenter behavior. Remaining s
 - All FH-01–FH-12 cases in [FINANCIAL_HELPER.md](FINANCIAL_HELPER.md), including exact arithmetic, incomplete data, zero income, frequency conversion and scenario isolation.
 - All WL-01–WL-14 cases in [WISHLIST.md](WISHLIST.md), including savings-only readiness, no double allocation, freshness, purchase retries and existing-expense reconciliation.
 - Extend the implemented client MVP and backend dependency/domain checks in [ARCHITECTURE.md](ARCHITECTURE.md) to new features.
-- Real MongoDB transaction/concurrency/rollback tests, API contract fixtures and owner isolation across every new collection.
+- Real Supabase Postgres transaction/concurrency/rollback tests, API contract fixtures and owner isolation across every new collection.
 - Extend the implemented explicit-currency onboarding checks to future profile editing and mixed-currency financial calculation rejection.
 - Offline queue/conflict behavior, user-data export/deletion, accessibility, supported-device journeys and measured performance.
 
 Documentation-only revisions validate links, requirement identifiers and cross-document consistency; rerunning prototype tests cannot validate features that have not been implemented.
+
+
+## Supabase migration verification
+
+MongoDB has been replaced by a Supabase Postgres adapter; MongoDB results above are historical. Run the regular backend suite with `.venv/bin/python -m pytest -q` from `backend/`. Tests cover configuration errors, hosted demo restrictions and driver error translation alongside the existing local API/domain tests.
+
+For live persistence verification, apply `supabase/migrations/202609300001_documents.sql` to a disposable Supabase project, set `TEST_SUPABASE_DB_URL` in the test process environment, then run `.venv/bin/python -m pytest -q tests/test_supabase_integration.py`. This test writes uniquely tagged records and cleans them up. It checks cross-connection persistence, update/delete behavior, ownership filters, unique email/budget constraints and concurrent single-use session consumption. It skips without the explicit test connection string. Never point it at production.
+
+The local verification does not establish live Supabase connectivity or multi-record funding transaction correctness. Supabase Auth and migration of existing user data are outside this database adapter change.
+
+Read-only connection/schema inspection is available via `backend/.venv/bin/python backend/scripts/check_supabase.py` from the repository root. It reads `backend/.env`, prints no credentials or user records, and does not apply migrations. The 2026-09-30 live results above establish connectivity for the configured project; future projects still need their own checks. When updating an already-migrated database, ensure the overall-budget unique index also treats null category IDs as equal (`NULLS NOT DISTINCT`).
