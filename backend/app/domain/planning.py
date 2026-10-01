@@ -2,12 +2,14 @@
 import calendar
 import hashlib
 import json
+import re
 from dataclasses import asdict
 from datetime import date, datetime, timedelta, timezone
 from uuid import uuid4
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from .errors import DomainError, ErrorKind
+from .funding_state import cash_changed
 from .finance import check_category, owned
 from .planning_commands import FinancialProfile, Schedule, Payment
 
@@ -106,6 +108,9 @@ def save_profile(data: FinancialProfile, user, db):
         ZoneInfo(data.timezone)
     except (ZoneInfoNotFoundError, ValueError):
         invalid('Choose a valid IANA timezone, such as Asia/Kuala_Lumpur or Europe/London.')
+    for target in (data.dsr_target, data.dti_target):
+        if target is not None and (not isinstance(target, str) or not re.fullmatch(r'\d{1,4}(\.\d{1,2})?', target)):
+            invalid('Ratio targets must be nonnegative percentages with up to two decimals.')
     sources = []
     ids = set()
     for source in data.income_sources:
@@ -140,6 +145,7 @@ def save_profile(data: FinancialProfile, user, db):
             invalid('Your plan contains current debt. Review it before confirming no debt.')
         plan['profile'] = {'currency': data.currency, 'timezone': data.timezone,
                            'income_sources': sources, 'debt_confirmation': data.debt_confirmation,
+                           'dsr_target': data.dsr_target, 'dti_target': data.dti_target,
                            'reviewed_at': stamp() if data.confirmed else None}
         persist(plan, tx)
         return public_plan(plan)
@@ -326,6 +332,7 @@ def pay(id, data: Payment, user, db):
             invalid('Payment must be positive and no larger than the unpaid amount. Record extra spending separately.')
         expense['commitment_occurrence_id'] = id
         tx.put('transactions', expense)
+        cash_changed(user, tx)
         plan['payments'][expense['id']] = {
             'transaction_id': expense['id'], 'occurrence_id': id, 'kind': due['kind'],
             'schedule_id': due['schedule_id'], 'due_date': due['due_date'],
@@ -347,6 +354,7 @@ def unlink(id, transaction_id, revision, user, db):
         expense = owned('transactions', transaction_id, user, tx)
         expense.pop('commitment_occurrence_id', None)
         tx.put('transactions', expense)
+        cash_changed(user, tx)
         del plan['payments'][transaction_id]
         persist(plan, tx)
         return {'revision': plan['revision'], 'transaction_id': transaction_id}

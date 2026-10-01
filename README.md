@@ -2,7 +2,7 @@
 
 A personal budget tracker built with Flutter, FastAPI and Supabase Postgres support. The revised [Release 1 requirements](skills_files/budget_tracker_requirements.md) require **Model–View–Presenter (MVP)** architecture, a country-neutral DSR/DTI financial helper and a guilt-free wishlist funded only by saved money.
 
-The runnable tracking prototype now uses feature presenters with tested repository boundaries and a layered backend. Financial profiles, debts and recurring bills are available through **Settings → Financial plan** (also linked from Budgets). Financial-helper calculations and wishlist are **specified but not implemented**; see [current status](docs/STATUS.md).
+The runnable tracking prototype now uses feature presenters with tested repository boundaries and a layered backend. Financial profiles, debts, recurring bills and the financial helper are available through **Settings → Financial plan** (also linked from Budgets). The financial helper now provides DSR/DTI calculations, what-if comparisons and explicitly saved snapshots. Protected funding and wishlist remain unimplemented; see [current status](docs/STATUS.md).
 
 ## Run locally
 
@@ -93,9 +93,9 @@ API documentation: http://localhost:8000/docs
 
 The Supabase Table Editor may initially show the empty `public` schema. Select **pocketwise** in its schema dropdown to see **documents**. The current prototype stores entity types as JSONB records distinguished by the `collection` column, rather than separate account/transaction/budget tables. This private schema is accessed through FastAPI; it is intentionally not exposed directly to client roles.
 
-Transactions support combined search, type/category, date-range and amount filters with 50-record pages. Use **Date & amount** for ranges spanning multiple months, **Load more transactions** for the next page, or **Clear filters** to return to the selected month. Settings lets you choose icons and colors for custom categories. Reports now includes a monthly spending/budget review, with incomplete-period and recording-coverage labels.
+Transactions support combined search, type/category, date-range and amount filters with 50-record pages. Use **Date & amount** for ranges spanning multiple months, **Load more transactions** for the next page, or **Clear filters** to return to the selected month. Settings lets you choose icons and colors for custom categories. Reports includes a monthly spending/budget review and debt ratios from declared schedules, with incomplete-period and recording-coverage labels.
 
-In **Settings**, use **Edit profile** to update your name or **Export my data** to save `pocketwise-data.json`. The export includes your profile, all transaction history, budgets and category definitions; money amounts are integer minor units in your account currency. Password hashes and authentication sessions are excluded. Browsers start a download; Android/iOS use a file-save dialog. Native export behavior still needs device verification. Password reset remains planned.
+In **Settings**, use **Edit profile** to update your name or **Export my data** to save `pocketwise-data.json`. The export includes your profile, all transaction history, budgets and category definitions; recorded money amounts are integer minor units in your account currency. Financial calculation snapshots additionally preserve normalized fractional minor-unit amounts and percentages as decimal strings. Password hashes and authentication sessions are excluded. Browsers start a download; Android/iOS use a file-save dialog. Native export behavior still needs device verification. Password reset remains planned.
 
 ## Project guide
 
@@ -111,8 +111,16 @@ In **Settings**, use **Edit profile** to update your name or **Export my data** 
 
 The original Java starter remains untouched. The app lives in `mobile/` and `backend/`. This is a working prototype; new financial features, broader UI state coverage and remaining release work are tracked in the status document. Registration and demo onboarding require an explicit currency choice in both the UI and API (EUR, GBP, MYR, SGD or USD).
 
+## Financial helper
+
+Open **Settings → Financial plan → Open financial helper**, or use its link in Reports. Review your gross/net income and debt list first. The helper shows net-basis DSR, gross-basis DTI, income after debt, itemized arithmetic and missing-input/review warnings. Optional personal percentage targets are entered when reviewing the financial profile; none are selected by default.
+
+**Try a what-if scenario** can change the effective date, monthly income, individual required monthly payments or an additional hypothetical payment. Comparing and discarding never changes your real records. **Save baseline snapshot** and **Save scenario snapshot** explicitly preserve the calculation inputs, formula version and results. Saved snapshots appear below the results and are marked outdated after profile/debt changes. They are included in personal-data export and account deletion.
+
+Snapshots use `collection = calculation_snapshots` in the existing private document table; no new SQL migration is needed. Snapshot saves use revision checks and idempotency keys inside the existing owner transaction. Normalization uses decimal arithmetic and percentages use half-up rounding to two decimals. Paying an occurrence or recording extra repayment does not reduce scheduled baseline debt. Essentials and savings have not been deducted from income after debt.
+
 ## Planned Gemini features
 
 Gemini (`gemini-3.5-flash-lite`) is reserved for the financial helper and guilt-free wishlist. Keep `GEMINI_API_KEY` in `backend/.env`; `GEMINI_MODEL` records the intended model. These settings do not activate any AI feature yet. Transaction entry always uses local rules, even when a key is configured.
 
-The planned design uses Python for DSR/DTI, savings, commitments and purchase-readiness calculations, with Gemini explaining the results and answering questions. Both features remain unimplemented. The unused Gemini adapter is retained as a transport/validation reference and will need feature-specific prompts and schemas.
+The planned design uses Python for DSR/DTI, savings, commitments and purchase-readiness calculations, with Gemini explaining the results and answering questions. The deterministic financial helper is implemented; Gemini explanations and the wishlist remain unimplemented. The unused Gemini adapter is retained as a transport/validation reference and will need feature-specific prompts and schemas.

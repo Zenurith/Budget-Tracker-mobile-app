@@ -139,6 +139,7 @@ def test_registration_race_uses_repository_error_contract():
 def test_transaction_commands_preserve_dates_and_owner_checks():
     db = MemoryRepository()
     user = {'id': 'owner'}
+    db.put('users', user)
     command = Transaction(amount=1550, type='expense', category_id='food', date=date(2026, 9, 29))
     saved = add_transaction(command, user, db)
     assert saved['date'] == '2026-09-29'

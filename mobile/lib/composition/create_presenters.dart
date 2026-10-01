@@ -1,3 +1,5 @@
+import '../data/api_funding_repository.dart';
+import '../data/api_helper_repository.dart';
 import '../core/presentation/app_presenters.dart';
 import '../data/api_repositories.dart';
 import '../services/api.dart';
@@ -14,6 +16,8 @@ AppPresenters createPresenters() {
     budgetRepository: finance,
     categoryRepository: finance,
     planningRepository: ApiPlanningRepository(api),
+    helperRepository: ApiHelperRepository(api),
+    fundingRepository: ApiFundingRepository(api),
     exportDestination: FileExportDestination(),
   );
 }

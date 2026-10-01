@@ -8,6 +8,7 @@ from .commands import Budget, Category, ParseRequest, Transaction
 from .errors import DomainError, ErrorKind
 from .nlp import parse
 from .ports import DocumentRepository
+from .funding_state import cash_changed
 
 DEFAULTS = [('food', 'Food', 'expense', 'restaurant', '#E3A25F'), ('transport', 'Transport', 'expense', 'directions_car', '#6D9DC5'), ('shopping', 'Shopping', 'expense', 'shopping_bag', '#AC8FC0'), ('bills', 'Bills', 'expense', 'receipt_long', '#D88679'), ('entertainment', 'Entertainment', 'expense', 'movie', '#7DB7A5'), ('health', 'Health', 'expense', 'favorite', '#D48FA6'), ('other-expense', 'Other expenses', 'expense', 'category', '#9AA6A0'), ('salary', 'Salary', 'income', 'work', '#4D8B70'), ('other-income', 'Other income', 'income', 'payments', '#79A897')]
 CATEGORIES = [dict(id=i, name=n, type=t, icon=ic, color=c, user_id=None) for i, n, t, ic, c in DEFAULTS]
@@ -64,8 +65,11 @@ def list_transactions(start: date | None=None, end: date | None=None, category_i
     return {'items': docs[(page - 1) * page_size:page * page_size], 'total': len(docs), 'page': page, 'page_size': page_size}
 
 def add_transaction(data: Transaction, user=None, db: DocumentRepository = None):
-    check_category(data.category_id, data.type, user, db)
-    return db.put('transactions', dict(dict(asdict(data), date=data.date.isoformat()), id=str(uuid4()), user_id=user['id'], created_at=datetime.now(timezone.utc).isoformat()))
+    with db.atomic(user['id']) as db:
+        check_category(data.category_id, data.type, user, db)
+        record = db.put('transactions', dict(dict(asdict(data), date=data.date.isoformat()), id=str(uuid4()), user_id=user['id'], created_at=datetime.now(timezone.utc).isoformat()))
+        cash_changed(user, db)
+        return record
 
 def edit_transaction(id: str, data: Transaction, user=None, db: DocumentRepository = None):
     with db.atomic(user['id']) as db:
@@ -73,7 +77,9 @@ def edit_transaction(id: str, data: Transaction, user=None, db: DocumentReposito
             raise DomainError(ErrorKind.CONFLICT, 'Unlink this payment from its obligation before editing or deleting the expense.')
         old = owned('transactions', id, user, db)
         check_category(data.category_id, data.type, user, db)
-        return db.put('transactions', dict(old, **dict(asdict(data), date=data.date.isoformat())))
+        record = db.put('transactions', dict(old, **dict(asdict(data), date=data.date.isoformat())))
+        cash_changed(user, db)
+        return record
 
 def delete_transaction(id: str, user=None, db: DocumentRepository = None):
     with db.atomic(user['id']) as db:
@@ -81,6 +87,7 @@ def delete_transaction(id: str, user=None, db: DocumentRepository = None):
             raise DomainError(ErrorKind.CONFLICT, 'Unlink this payment from its obligation before editing or deleting the expense.')
         owned('transactions', id, user, db)
         db.delete('transactions', id=id, user_id=user['id'])
+        cash_changed(user, db)
 
 def list_budgets(period: str=None, user=None, db: DocumentRepository = None):
     transactions = [d for d in db.find('transactions', user_id=user['id']) if d['date'].startswith(period) and d['type'] == 'expense']

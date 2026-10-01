@@ -77,7 +77,7 @@ class PlanningPresenter extends Presenter<PlanningState> {
 
   Future<bool> _save(
     Future<void> Function(int) operation, {
-    bool expenseChanged = false,
+    bool reportsChanged = false,
   }) async {
     if (_account == null || state.saving || state.busy || disposed) {
       return false;
@@ -89,7 +89,7 @@ class PlanningPresenter extends Presenter<PlanningState> {
     try {
       await operation(revision);
       if (owner != _owner || disposed) return false;
-      if (expenseChanged) effect(const DataChanged());
+      if (reportsChanged) effect(const DataChanged());
       await _load(saving: true);
       return owner == _owner && !disposed;
     } catch (error) {
@@ -112,6 +112,7 @@ class PlanningPresenter extends Presenter<PlanningState> {
       'expected_revision': revision,
       'currency': _account!.currency,
     }),
+    reportsChanged: true,
   );
   Future<bool> saveSchedule(String kind, Json draft, {String? id}) => _save(
     (revision) => _repository.saveSchedule(kind, {
@@ -119,9 +120,12 @@ class PlanningPresenter extends Presenter<PlanningState> {
       'expected_revision': revision,
       'currency': _account!.currency,
     }, id: id),
+    reportsChanged: kind == 'debts',
   );
-  Future<bool> deleteSchedule(String kind, String id) =>
-      _save((revision) => _repository.deleteSchedule(kind, id, revision));
+  Future<bool> deleteSchedule(String kind, String id) => _save(
+    (revision) => _repository.deleteSchedule(kind, id, revision),
+    reportsChanged: kind == 'debts',
+  );
 
   Future<bool> pay(String occurrenceId, Json draft) async {
     if (_account == null || state.saving || state.busy || disposed) {
@@ -143,7 +147,7 @@ class PlanningPresenter extends Presenter<PlanningState> {
         ...payment,
         'expected_revision': revision,
       }),
-      expenseChanged: true,
+      reportsChanged: true,
     );
     if (result) {
       _pendingPayment = null;
@@ -161,6 +165,6 @@ class PlanningPresenter extends Presenter<PlanningState> {
 
   Future<bool> unlink(String occurrenceId, String transactionId) => _save(
     (revision) => _repository.unlink(occurrenceId, transactionId, revision),
-    expenseChanged: true,
+    reportsChanged: true,
   );
 }

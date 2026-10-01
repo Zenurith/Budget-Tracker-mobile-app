@@ -30,6 +30,8 @@ class Profile(StrictInput):
     income_sources: list[Income] = Field(max_length=30)
     debt_confirmation: Literal['unknown', 'complete', 'none']
     confirmed: bool
+    dsr_target: str | None = Field(default=None, pattern=r'^\d{1,4}(\.\d{1,2})?$')
+    dti_target: str | None = Field(default=None, pattern=r'^\d{1,4}(\.\d{1,2})?$')
 
 
 class Schedule(StrictInput):

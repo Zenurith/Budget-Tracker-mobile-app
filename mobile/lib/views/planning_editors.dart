@@ -390,6 +390,12 @@ class _FinancialProfileEditorState extends State<FinancialProfileEditor> {
   late final zone = TextEditingController(
     text: widget.presenter.state.profile?['timezone'] ?? '',
   );
+  late final targets = {
+    for (final key in ['dsr_target', 'dti_target'])
+      key: TextEditingController(
+        text: widget.presenter.state.profile?[key] as String? ?? '',
+      ),
+  };
   late final sources =
       (widget.presenter.state.profile?['income_sources'] as List? ?? [])
           .map((s) => Map<String, dynamic>.of(s as Json))
@@ -401,6 +407,9 @@ class _FinancialProfileEditorState extends State<FinancialProfileEditor> {
   @override
   void dispose() {
     zone.dispose();
+    for (final controller in targets.values) {
+      controller.dispose();
+    }
     super.dispose();
   }
 
@@ -509,6 +518,28 @@ class _FinancialProfileEditorState extends State<FinancialProfileEditor> {
                 const Text(
                   'You may save an incomplete draft. No missing amount or empty debt list is assumed to mean zero.',
                 ),
+                for (final entry in targets.entries) ...[
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: entry.value,
+                    enabled: !busy,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: InputDecoration(
+                      labelText:
+                          '${entry.key == 'dsr_target' ? 'DSR' : 'DTI'} personal target (%) · optional',
+                      helperText: 'Your preference; not a lender threshold',
+                    ),
+                    validator: (value) =>
+                        (value ?? '').trim().isEmpty ||
+                            RegExp(
+                              r'^\d{1,4}(\.\d{1,2})?$',
+                            ).hasMatch(value!.trim())
+                        ? null
+                        : 'Enter a nonnegative percentage (up to 2 decimals)',
+                  ),
+                ],
                 if (error != null)
                   Text(
                     error!,
@@ -540,6 +571,10 @@ class _FinancialProfileEditorState extends State<FinancialProfileEditor> {
                     'income_sources': sources,
                     'debt_confirmation': confirmation,
                     'confirmed': confirmed,
+                    for (final entry in targets.entries)
+                      entry.key: entry.value.text.trim().isEmpty
+                          ? null
+                          : entry.value.text.trim(),
                   });
                   if (!context.mounted) return;
                   if (saved) {

@@ -1,5 +1,12 @@
 # Testing and verification
 
+## Financial helper checks on 2026-10-01 (macOS)
+
+- Backend: **107 passed, 4 skipped**, **93.97% coverage**. All FH-01–FH-12 are covered, including partial availability, zero denominators, >100% ratios, required versus extra/paid amounts, normalization, currency/ownership, effective dates and scenario isolation. Additional tests cover half-up rounding, review age, targets, report dates, immutable snapshots, revision conflicts, explicit save, replay, pagination, export/deletion and rollback.
+- New live Supabase snapshot test: **1 passed** (`-k helper_snapshot`). Verified persistence across pools, concurrent retry deduplication, owner isolation and rollback after an inserted snapshot. Temporary records were cleaned up. The other three existing live tests were not rerun for this slice.
+- Flutter: **47 passed**; plain Dart: **29 passed**; analysis clean. Dashboard goldens are unchanged. Helper coverage includes input validation, incomplete results, reload races, sign-out/disposal, revision invalidation, duplicate submission and retry keys, scenario comparison/save, and a 390×844 phone at 200% text.
+- Web release build and Wasm dry run succeeded. Native device builds/journeys, performance and full screen-reader checks remain unverified.
+
 ## Financial profile and commitments checks on 2026-09-30 (macOS)
 
 - Backend: **90 passed, 3 skipped**, **92.93% coverage**. Tests cover missing versus zero income, explicit review, currency/timezone validation, recurrence dates, partial/existing payment links, owner isolation, stale revisions, retries and atomic rollback.
@@ -89,7 +96,7 @@ Windows uses `mobile/test/goldens/windows/`; other platforms retain the original
 - Flutter web release build succeeded, including the Wasm compatibility dry run. Native builds remain unverified.
 - At that revision, remaining migration work included backend auth infrastructure coupling, shared transport/domain request models and broader widget coverage. The backend boundaries were completed on 2026-09-29 (see above).
 
-These checks do not validate the unimplemented financial-helper calculations, wishlist or protected-funding model.
+The historical checks below did not cover the financial helper; the October checks above do. Wishlist and protected funding remain unimplemented.
 
 ## Prototype verification on 2026-09-28 (before the revised architecture/features)
 
@@ -117,7 +124,7 @@ A Starlette deprecation warning currently appears for its httpx-based TestClient
 
 The results above apply to existing tracking and presenter behavior. Remaining suites include:
 
-- All FH-01–FH-12 cases in [FINANCIAL_HELPER.md](FINANCIAL_HELPER.md), including exact arithmetic, incomplete data, zero income, frequency conversion and scenario isolation.
+- FH-01–FH-12 in [FINANCIAL_HELPER.md](FINANCIAL_HELPER.md) are covered by the October helper suite; preserve them as the funding and wishlist models are added.
 - All WL-01–WL-14 cases in [WISHLIST.md](WISHLIST.md), including savings-only readiness, no double allocation, freshness, purchase retries and existing-expense reconciliation.
 - Extend the implemented client MVP and backend dependency/domain checks in [ARCHITECTURE.md](ARCHITECTURE.md) to new features.
 - Real Supabase Postgres transaction/concurrency/rollback tests, API contract fixtures and owner isolation across every new collection.

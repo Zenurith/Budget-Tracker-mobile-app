@@ -1,3 +1,5 @@
+import 'package:pocketwise/features/funding/model/funding_repository.dart';
+import 'package:pocketwise/features/financial_helper/model/helper_repository.dart';
 import 'dart:async';
 import 'package:pocketwise/core/model/contracts.dart';
 import 'package:pocketwise/core/presentation/app_presenters.dart';
@@ -177,6 +179,8 @@ AppPresenters testPresenters(
   budgetRepository: repository,
   categoryRepository: repository,
   planningRepository: planningRepository ?? FakePlanningRepository(),
+  helperRepository: FakeHelperRepository(),
+  fundingRepository: FakeFundingRepository(),
   exportDestination: exportDestination,
   now: () => DateTime(2026, 9),
 );
@@ -229,4 +233,136 @@ class FakePlanningRepository implements PlanningRepository {
     String transactionId,
     int revision,
   ) async {}
+}
+
+class FakeHelperRepository implements HelperRepository {
+  Json baseline = {
+    'source_revision': 0,
+    'effective_date': '2026-10-01',
+    'currency': 'MYR',
+    'complete': true,
+    'review_due': false,
+    'missing_inputs': [],
+    'warnings': [],
+    'gross_monthly': '600000',
+    'net_monthly': '500000',
+    'debt_monthly': '110000',
+    'income_after_debt': '390000',
+    'debts': [],
+    'income_sources': [],
+    'ratios': {
+      'dsr': <String, dynamic>{'value': '22.00'},
+      'dti': <String, dynamic>{'value': '18.33'},
+    },
+  };
+  String? failure;
+  Completer<Json>? calculateGate, scenarioGate, saveGate;
+  Json? lastScenario, lastSave;
+  int saves = 0;
+  @override
+  Future<Json> calculate() async {
+    if (failure != null) throw StateError(failure!);
+    return calculateGate == null ? baseline : await calculateGate!.future;
+  }
+
+  @override
+  Future<Json> scenario(Json request) async {
+    lastScenario = request;
+    if (failure != null) throw StateError(failure!);
+    return scenarioGate == null
+        ? {
+            'baseline': baseline,
+            'scenario': {...baseline, 'kind': 'scenario'},
+          }
+        : await scenarioGate!.future;
+  }
+
+  @override
+  Future<Json> snapshots(int page) async => {
+    'items': [],
+    'total': 0,
+    'page': page,
+  };
+  @override
+  Future<Json> saveSnapshot(Json request) async {
+    saves++;
+    lastSave = request;
+    if (failure != null) throw StateError(failure!);
+    return saveGate == null
+        ? {
+            'id': 'saved',
+            'name': request['name'],
+            'result': baseline,
+            'outdated': false,
+          }
+        : await saveGate!.future;
+  }
+}
+
+class FakeFundingRepository implements FundingRepository {
+  Json data = {
+    'revision': 0,
+    'planning_revision': 0,
+    'currency': 'MYR',
+    'as_of': '2026-10-01',
+    'horizon_end': '2026-10-30',
+    'snapshot': null,
+    'plan': null,
+    'goals': [],
+    'occurrences': [],
+    'allowances': [],
+    'schedules': [],
+    'missing_inputs': ['Confirm your cash and plan.'],
+    'stale_reasons': [],
+    'warnings': [],
+    'usable': false,
+    'can_allocate': false,
+    'liquid_total': null,
+    'free_to_allocate': null,
+    'coverage_shortfall': null,
+    'obligations_total': 0,
+    'emergency_reserved': 0,
+    'savings_reserved': 0,
+    'buffer_amount': null,
+    'monthly_forecast_surplus': null,
+  };
+  String? failure;
+  Completer<Json>? loadGate, saveGate;
+  Json? lastSnapshot, lastPlan, lastGoal, lastMove;
+  int moves = 0;
+  @override
+  Future<Json> load() async {
+    if (failure != null) throw StateError(failure!);
+    return loadGate == null ? data : await loadGate!.future;
+  }
+
+  @override
+  Future<Json> events(int page) async => {'items': [], 'total': 0};
+  @override
+  Future<Json> saveSnapshot(Json draft) async {
+    lastSnapshot = draft;
+    return data;
+  }
+
+  @override
+  Future<Json> savePlan(Json draft) async {
+    lastPlan = draft;
+    return data;
+  }
+
+  @override
+  Future<Json> saveGoal(Json draft, {String? id}) async {
+    lastGoal = draft;
+    return data;
+  }
+
+  @override
+  Future<Json> deleteGoal(String id, int revision) async => data;
+  @override
+  Future<Json> move(String kind, Json draft) async {
+    lastMove = draft;
+    moves++;
+    if (failure != null) throw StateError(failure!);
+    return saveGate == null ? {'revision': 1} : await saveGate!.future;
+  }
 }

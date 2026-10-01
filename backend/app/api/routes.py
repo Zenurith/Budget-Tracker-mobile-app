@@ -7,6 +7,9 @@ from ..domain.demo import demo as seed_demo
 from ..infrastructure.rate_limit import AuthRateLimiter
 from . import planning_schemas as ps
 from ..domain import planning, planning_commands as pc
+from ..domain import financial_helper as helper
+from . import helper_schemas as hs
+from .funding_routes import build_funding_router
 
 
 def build_router(auth, mode):
@@ -81,6 +84,32 @@ def build_router(auth, mode):
         values = data.model_dump()
         values['income_sources'] = tuple(pc.IncomeSource(**s) for s in values['income_sources'])
         return planning.save_profile(pc.FinancialProfile(**values), user, db)
+
+    def assumptions(data):
+        if data is None:
+            return None
+        values = data.model_dump()
+        values['debt_payments'] = tuple((d['id'], d['monthly_payment']) for d in values['debt_payments'])
+        return helper.Scenario(**values)
+
+    @router.post('/financial-helper/calculate')
+    def calculate_helper(data: hs.Calculation, user=Depends(current), db=Depends(repo)):
+        return helper.calculate(user, db, **data.model_dump())
+
+    @router.post('/financial-helper/scenarios')
+    def calculate_scenario(data: hs.ScenarioRequest, user=Depends(current), db=Depends(repo)):
+        return helper.calculate(user, db, expected_revision=data.expected_revision,
+                                effective_date=data.effective_date, scenario=assumptions(data.assumptions))
+
+    @router.get('/financial-helper/snapshots')
+    def helper_snapshots(page: int=Query(1, ge=1), page_size: int=Query(20, ge=1, le=100), user=Depends(current), db=Depends(repo)):
+        return helper.snapshots(user, db, page, page_size)
+
+    @router.post('/financial-helper/snapshots', status_code=201)
+    def save_helper_snapshot(data: hs.Snapshot, user=Depends(current), db=Depends(repo)):
+        return helper.save_snapshot(user, db, expected_revision=data.expected_revision,
+            effective_date=data.effective_date, scenario=assumptions(data.assumptions),
+            operation_id=data.operation_id, name=data.name)
 
     @router.get('/debts')
     def debts(user=Depends(current), db=Depends(repo)):
@@ -170,7 +199,9 @@ def build_router(auth, mode):
 
     @router.get('/reports/summary')
     def summary(month: str=Query(pattern='^\\d{4}-(0[1-9]|1[0-2])$'), user=Depends(current), db=Depends(repo)):
-        return finance.summary(month=month, user=user, db=db)
+        result = finance.summary(month=month, user=user, db=db)
+        result['review']['debt_ratios'] = helper.monthly_review(month, user, db)
+        return result
 
     @router.post('/nlp/parse')
     def parse_entry(data: ParseRequest, user=Depends(current), db=Depends(repo)):
@@ -182,4 +213,5 @@ def build_router(auth, mode):
             raise HTTPException(404, 'Demo is only available in local development.')
         return seed_demo(data.currency, db, auth)
 
+    router.include_router(build_funding_router(current, repo))
     return router

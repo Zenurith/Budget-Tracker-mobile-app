@@ -130,7 +130,7 @@ def test_supabase_api_profile_export_and_account_isolation(monkeypatch):
             for email in emails:
                 user = repo.get('users', email=email)
                 if user:
-                    for collection in ('transactions', 'budgets', 'categories', 'sessions'):
+                    for collection in ('transactions', 'budgets', 'categories', 'sessions', 'funding', 'funding_events'):
                         repo.delete(collection, user_id=user['id'])
                     repo.delete('users', id=user['id'])
         finally:
@@ -193,9 +193,63 @@ def test_supabase_planning_atomic_rollback_and_concurrent_payments(monkeypatch):
         assert len(second.find('transactions', user_id=owner)) == 2
     finally:
         try:
-            for collection in ('planning', 'transactions'):
+            for collection in ('planning', 'transactions', 'funding', 'funding_events'):
                 first.delete(collection, user_id=owner)
             first.delete('users', id=owner)
+        finally:
+            first.close()
+            if second:
+                second.close()
+
+
+def test_supabase_helper_snapshot_persistence_retry_isolation_and_rollback(monkeypatch):
+    from datetime import date
+    from app.domain import financial_helper as helper, planning
+    from app.domain.planning_commands import FinancialProfile, IncomeSource
+    url = os.getenv('TEST_SUPABASE_DB_URL')
+    if not url:
+        pytest.skip('Set TEST_SUPABASE_DB_URL to a migrated disposable Supabase project.')
+    first = SupabaseRepository(url)
+    second = None
+    owner = str(uuid4())
+    other = {'id': str(uuid4()), 'email': str(uuid4()) + '@example.com', 'currency': 'EUR'}
+    user = {'id': owner, 'email': owner + '@example.com', 'currency': 'EUR'}
+    try:
+        second = SupabaseRepository(url)
+        first.put('users', user)
+        first.put('users', other)
+        planning.save_profile(FinancialProfile(expected_revision=0, currency='EUR', timezone='UTC',
+            income_sources=(IncomeSource(name='Salary', currency='EUR', gross=600000, net=500000,
+                                         frequency='monthly', start_date=date(2020, 1, 1)),),
+            debt_confirmation='none', confirmed=True), user, first)
+        args = dict(expected_revision=1, effective_date=date(2026, 10, 1), scenario=None,
+                    operation_id=str(uuid4()), name='Temporary integration snapshot')
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            results = list(executor.map(lambda repo: helper.save_snapshot(user, repo, **args), (first, second)))
+        assert results[0] == results[1]
+        saved = helper.snapshots(user, second)['items']
+        assert len(saved) == 1
+        assert saved[0]['result']['ratios']['dsr']['value'] == '0.00'
+        assert not saved[0]['outdated']
+        assert helper.snapshots(other, second)['items'] == []
+        assert second.get('calculation_snapshots', id=saved[0]['id'], user_id=other['id']) is None
+        original = SupabaseRepository.put
+        def fail(self, collection, doc):
+            result = original(self, collection, doc)
+            if collection == 'calculation_snapshots':
+                raise RuntimeError('simulated failure after snapshot write')
+            return result
+        with monkeypatch.context() as patch:
+            patch.setattr(SupabaseRepository, 'put', fail)
+            with pytest.raises(RuntimeError):
+                helper.save_snapshot(user, first, **dict(args, operation_id=str(uuid4())))
+        assert helper.snapshots(user, second)['total'] == 1
+    finally:
+        try:
+            for account in (user, other):
+                for collection in ('planning', 'calculation_snapshots'):
+                    first.delete(collection, user_id=account['id'])
+                first.delete('users', id=account['id'])
         finally:
             first.close()
             if second:

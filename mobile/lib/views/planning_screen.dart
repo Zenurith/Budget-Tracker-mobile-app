@@ -1,3 +1,5 @@
+import 'funding_screen.dart';
+import 'financial_helper_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../core/presentation/app_presenters.dart';
@@ -104,6 +106,19 @@ class PlanningScreen extends StatelessWidget {
                 ),
               ),
             if (state.data.isNotEmpty) ...[
+              OutlinedButton.icon(
+                onPressed: state.busy || state.saving
+                    ? null
+                    : () => Navigator.push(
+                        context,
+                        MaterialPageRoute<void>(
+                          builder: (_) =>
+                              FundingScreen(presenter: presenters.funding),
+                        ),
+                      ),
+                icon: const Icon(Icons.savings_outlined),
+                label: const Text('Open protected funding'),
+              ),
               Card(
                 child: Padding(
                   padding: const EdgeInsets.all(20),
@@ -169,8 +184,19 @@ class PlanningScreen extends StatelessWidget {
                         child: const Text('Review income & debt profile'),
                       ),
                       const SizedBox(height: 8),
-                      const Text(
-                        'Debt ratios are the next module. These inputs do not yet assess purchase readiness.',
+                      OutlinedButton.icon(
+                        onPressed: state.busy || state.saving
+                            ? null
+                            : () => Navigator.push(
+                                context,
+                                MaterialPageRoute<void>(
+                                  builder: (_) => FinancialHelperScreen(
+                                    presenter: presenters.helper,
+                                  ),
+                                ),
+                              ),
+                        icon: const Icon(Icons.calculate_outlined),
+                        label: const Text('Open financial helper'),
                       ),
                     ],
                   ),

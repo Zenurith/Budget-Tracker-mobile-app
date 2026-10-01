@@ -75,6 +75,11 @@ class AuthService:
             'money_unit': 'minor_units',
             'account': self.public(user),
             'categories': categories(user, db),
+            'funding': [{k: v for k, v in f.items() if k != 'operations'}
+                        for f in db.find('funding', user_id=user['id'])],
+            'funding_events': db.find('funding_events', user_id=user['id']),
+            'calculation_snapshots': [{k: v for k, v in r.items() if k not in ('request_hash', 'user_id')}
+                                      for r in db.find('calculation_snapshots', user_id=user['id'])],
             'planning': [{k: v for k, v in p.items() if k != 'operations'}
                          for p in db.find('planning', user_id=user['id'])],
             **{collection: db.find(collection, user_id=user['id'])
@@ -83,6 +88,6 @@ class AuthService:
 
     def delete_account(self, user=None, db: DocumentRepository = None):
         with db.atomic(user['id']) as tx:
-            for collection in ('transactions', 'budgets', 'categories', 'sessions', 'planning'):
+            for collection in ('transactions', 'budgets', 'categories', 'sessions', 'planning', 'calculation_snapshots', 'funding', 'funding_events'):
                 tx.delete(collection, user_id=user['id'])
             tx.delete('users', id=user['id'])

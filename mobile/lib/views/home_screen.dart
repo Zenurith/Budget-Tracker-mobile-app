@@ -1,3 +1,4 @@
+import 'financial_helper_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
@@ -1368,8 +1369,25 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ...budgets.map((budget) => budgetRow(budget)),
           const SizedBox(height: 12),
+          if (review['debt_ratios'] != null) ...[
+            HelperResultCard(
+              result: review['debt_ratios'] as Json,
+              title: 'Debt ratios · declared schedules',
+            ),
+            TextButton(
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute<void>(
+                  builder: (_) => FinancialHelperScreen(
+                    presenter: widget.presenters.helper,
+                  ),
+                ),
+              ),
+              child: const Text('Open financial helper'),
+            ),
+          ],
           const Text(
-            'Debt ratios and savings/wishlist progress will appear when those modules are available.',
+            'Savings and wishlist progress will appear when those modules are available.',
           ),
         ],
       ),

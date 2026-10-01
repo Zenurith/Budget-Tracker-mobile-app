@@ -1,6 +1,6 @@
 # Release 1 implementation plan
 
-Status: Slice 1 is complete. Slice 3 financial inputs, schedules, occurrence/payment linking and confirmation flows are implemented; Slice 4 (DSR/DTI, scenarios and snapshots) is next. Slice 2 now includes explicit currency selection, account name editing, personal-data JSON export, custom category icon/color controls, paginated date/amount transaction filters and the core spending/budget monthly review. Password recovery is deferred at the user's request (2026-09-30), so Slice 2 is not fully closed. Debt-ratio and goal/wishlist review sections depend on later slices. MVP means Model–View–Presenter; release scope is called R1. Source of truth: [product requirements](../skills_files/budget_tracker_requirements.md).
+Status: Slice 1 is complete. Slice 3 financial inputs, schedules, occurrence/payment linking and confirmation flows are implemented; Slice 4 (DSR/DTI, scenarios and snapshots) is implemented; Slice 5 protected funding is next. Slice 2 now includes explicit currency selection, account name editing, personal-data JSON export, custom category icon/color controls, paginated date/amount transaction filters and the core spending/budget monthly review. Password recovery is deferred at the user's request (2026-09-30), so Slice 2 is not fully closed. Debt-ratio review is implemented; goal/wishlist review sections depend on later slices. MVP means Model–View–Presenter; release scope is called R1. Source of truth: [product requirements](../skills_files/budget_tracker_requirements.md).
 
 ## Sequence and exit criteria
 

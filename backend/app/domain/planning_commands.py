@@ -25,6 +25,8 @@ class FinancialProfile:
     income_sources: tuple[IncomeSource, ...]
     debt_confirmation: str
     confirmed: bool
+    dsr_target: str | None = None
+    dti_target: str | None = None
 
 
 @dataclass(frozen=True, kw_only=True)

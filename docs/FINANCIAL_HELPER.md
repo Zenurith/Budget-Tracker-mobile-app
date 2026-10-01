@@ -1,6 +1,6 @@
 # Financial helper specification
 
-Status: required for Release 1. Financial input profiles, debt schedules and recurring commitment/payment flows are implemented. Ratio calculations, scenarios, explanations and saved calculation snapshots remain unimplemented. Covers FR-30–FR-35 and supports FR-31/FR-43 commitment planning.
+Status: required for Release 1. Financial input profiles, debt schedules and recurring commitment/payment flows are implemented. Ratio calculations, scenarios, deterministic explanations, optional personal targets and explicitly saved snapshots are implemented. Gemini explanations are not enabled. Covers FR-30–FR-35 and supports FR-31/FR-43 commitment planning.
 
 ## Purpose and terminology
 
@@ -77,4 +77,12 @@ Amounts below are generic human-readable currency units; APIs use minor units of
 | FH-11 Isolation/currency | Another user's debt ID or mismatched currency | Reject; no data leakage or implicit conversion |
 | FH-12 Future/closed debt | Debt starts next month or is closed before effective date | Excluded now; included only in an applicable future scenario |
 
-Required tests cover every case, decimal rounding, repeatability, source revisions and owner scoping. These tests are not present yet; current parser/transaction coverage does not cover this feature.
+Required tests cover every case, decimal rounding, repeatability, source revisions and owner scoping. These cases are implemented in `backend/tests/test_financial_helper.py`; helper presenter/widget tests and a live Supabase snapshot test cover the client and persistence boundaries.
+
+## Implemented contract notes
+
+The helper is accessible from Financial plan and Reports. `calculate` and `scenarios` are read-only POSTs; `snapshots` supports explicit POST saves and paginated GET history. Percentages and normalized fractional minor-unit amounts are decimal strings; unavailable values are null with structured reasons. The server uses a 50-digit decimal context, retaining precision through normalization and rounding percentages half-up only for display.
+
+A snapshot stores the original profile/debt inputs, scenario assumptions, formula version, source revision and outputs. Its input fingerprint excludes payment links and expenses, so paying a scheduled obligation does not falsely change the baseline. Input edits mark history outdated; a 30-day review warning is also computed when listing history. Account export/deletion covers snapshots.
+
+The current report uses declared schedules effective at month end (today for the current month), explicitly labelled as current declarations rather than reconstructed historical income. Variable-income historical averaging is not implemented; explicit monthly estimates with notes remain supported. Snapshot pagination currently slices owner-scoped repository results in memory.
