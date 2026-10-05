@@ -3,12 +3,14 @@ import '../../../core/presentation/presenter.dart';
 import '../../../models/finance.dart';
 
 class HistoryState {
+  final String? cachedAt;
   final EntryFilter filter;
   final List<Entry> entries;
   final int total, page;
   final bool busy;
   final String? error;
   HistoryState({
+    this.cachedAt,
     required this.filter,
     List<Entry> entries = const [],
     this.total = 0,
@@ -82,6 +84,7 @@ class HistoryPresenter extends Presenter<HistoryState> {
           entries: result.entries,
           total: result.total,
           page: 1,
+          cachedAt: result.cachedAt,
         ),
       );
     } catch (error) {
@@ -106,6 +109,7 @@ class HistoryPresenter extends Presenter<HistoryState> {
         entries: previous.entries,
         total: previous.total,
         page: previous.page,
+        cachedAt: previous.cachedAt,
         busy: true,
       ),
     );
@@ -125,6 +129,7 @@ class HistoryPresenter extends Presenter<HistoryState> {
           entries: entries.values.toList(),
           total: result.total,
           page: previous.page + 1,
+          cachedAt: previous.cachedAt ?? result.cachedAt,
         ),
       );
     } catch (error) {
@@ -135,6 +140,7 @@ class HistoryPresenter extends Presenter<HistoryState> {
             entries: previous.entries,
             total: previous.total,
             page: previous.page,
+            cachedAt: previous.cachedAt,
             error: error.toString(),
           ),
         );

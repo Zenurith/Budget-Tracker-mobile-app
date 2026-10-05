@@ -10,7 +10,27 @@ The existing private `pocketwise.documents` table stores one `planning` document
 
 Profile currency matches the account; timezone must be explicitly supplied. Gross/net missing values differ from zero; variable income may use a declared monthly estimate with notes. Debt-list confirmation is unknown, complete or none. Debt changes invalidate review; review age is flagged after 30 days. Required debt payment and optional extra payment remain separate. Credit cards use an explicitly confirmed statement-required payment. DSR/DTI are calculated by the financial-helper endpoints described below. Queries are limited to 367 days and 5,000 occurrences. Before profile setup, due-date status provisionally uses UTC.
 
-Personal JSON export includes planning and calculation snapshots, excluding internal operation replay records/request hashes; account deletion removes both. Multi-record protected funding and cash reconciliation are still future work.
+Personal JSON export includes planning and calculation snapshots, excluding internal operation replay records/request hashes; account deletion removes both. Protected funding and cash reconciliation are implemented as described in [FUNDING.md](FUNDING.md); wishlist purchases, refunds and link corrections use the same owner transaction.
+
+## Implemented protected-funding contract
+
+See [FUNDING.md](FUNDING.md) for endpoints, formulas and persistence details. `GET /funding/availability` (also `/funding/snapshot`, `/funding/plan` and `/goals`) returns one consistent owner view with funding/planning/cash revisions, completeness, freshness and integer-minor-unit arithmetic. Missing inputs yield null available cash/shortfall; stale complete results remain review-only.
+
+`PUT /funding/snapshot` confirms named account balances and an aware as-of timestamp. `PUT /funding/plan` confirms the income date or 30-day fallback, linked allowances, buffer and forecast surplus. Goal CRUD supports emergency/savings goals inside or outside included cash. A dated `required_amount` is the minimum funded reserve by that date, not an additional recurring contribution. Reserve/release/reallocation endpoints require both revisions, currency, positive amount and an operation ID. Funded goal deletion is rejected. History is exposed by paginated `GET /funding/events`.
+
+The `funding` aggregate and `funding_events` ledger share the existing private table. Money changes and their ledger/replay records are atomic. Transaction writes and funding operations share the owner lock, and recorded cash changes increment a monotonic cash revision. Export/deletion covers both new collections. Wishlist reservations and purchase/refund/link-correction events share this aggregate and ledger.
+
+## Implemented offline transaction contract
+
+`GET /transactions` and `GET /transactions/{id}` expose a version hash. `POST /transactions/sync` supports `create`, `update` and `delete` with stable `operation_id`; edits/deletes require the displayed `expected_version`. Retry results, transaction writes and cash invalidation share one owner transaction. Replay documents live in `transaction_operations`, are excluded from server exports and are removed with the account. Flutter exports additionally include pending device transactions. See [OFFLINE.md](OFFLINE.md) for conflict choices, cache scope and lifecycle rules.
+
+## Implemented wishlist contract
+
+`GET /wishlist` returns the complete funding view plus ordered items, derived readiness/reasons, contribution forecasts, revision-bound quotes, a snapshot token, purchase history and categories. Item creation/update takes account currency and `expected_revision`; deletion rejects retained reservations or purchase history. Active items receive funds through the existing funding allocation/reallocation endpoints. Pausing or archiving requires explicitly clearing forecast contributions and retains reserved cash.
+
+`POST /wishlist/{id}/purchases` requires both funding/planning revisions, currency, a stable `operation_id`, actual amount/date/category and explicit confirmation. `baseline_effect=subtract_from_prior_snapshot` requires the current item quote and included `account_name`; server readiness is recalculated for the actual amount. `baseline_effect=already_reconciled` requires the current `snapshot_token`, and optionally a matching unlinked `transaction_id`; it does not deduct cash again and records readiness as `not_assessed`.
+
+`POST /wishlist-purchases/{id}/refund` records actual received income with amount/date/income category and reason. `/reverse` removes purchase/refund transaction links, retains the actual entries and audit history, and reopens the item without restoring reservations. Both require revision, currency, operation ID and confirmation; both require cash reconciliation afterward. Ordinary edits/deletes of linked transactions are rejected. Retries return the original result; reusing a key with a changed payload conflicts. Purchase, ledger, transaction and reservation writes commit atomically under the owner lock. All records are included in export/deletion; no new schema migration is required.
 
 ## Implemented financial-helper contract
 
@@ -31,7 +51,7 @@ Demo amounts are illustrative minor-unit values in the chosen currency, not conv
 
 ## Shared conventions
 
-Implemented tracking additions: `GET /transactions` combines inclusive `start`/`end`, `min_amount`/`max_amount` (integer minor units, zero allowed), category/type, and `q` matching notes or category names. Reversed dates or amount ranges return 422. Results have stable date/created-at/ID ordering and page/page-size metadata; pages are live reads, not a fixed snapshot during concurrent edits. `GET /reports/summary` now includes `review` with period status, entry/day counts, recorded spending change from the prior month, prior entry count and independent budget variances. Coverage is explicitly unknown beyond recorded entries. Debt ratios use declared schedules as described above; goal/wishlist progress remains unimplemented.
+Implemented tracking additions: `GET /transactions` combines inclusive `start`/`end`, `min_amount`/`max_amount` (integer minor units, zero allowed), category/type, and `q` matching notes or category names. Reversed dates or amount ranges return 422. Results have stable date/created-at/ID ordering and page/page-size metadata; pages are live reads, not a fixed snapshot during concurrent edits. `GET /reports/summary` now includes `review` with period status, entry/day counts, recorded spending change from the prior month, prior entry count and independent budget variances. Coverage is explicitly unknown beyond recorded entries. Debt ratios use declared schedules as described above; `review.funding` reports current reserves (explicitly not historical month-end balances), active items and monthly recorded purchase/refund totals.
 
 The following account endpoints are implemented: `PUT /auth/me` accepts only `{"name":"New name"}` (trimmed, nonblank, maximum 80 characters); extra fields, including currency, email and owner ID, are rejected. `GET /auth/me/export` returns a JSON attachment with `schema_version: 1`, UTC `exported_at`, `money_unit: "minor_units"`, public `account`, all owned `transactions` and `budgets`, and `categories` including default definitions. Exports are not paginated or limited to the selected month. Authentication is required, responses use `Cache-Control: no-store`, and password hashes/session records are excluded. Export reads are not yet a transactionally consistent point-in-time backup when another client writes concurrently.
 
@@ -90,11 +110,11 @@ Existing endpoint names are retained where possible. New methods are planned unt
 | Commitments | `GET/POST /commitments`, `PUT/DELETE /commitments/{id}`; `GET /commitment-occurrences?start=&end=`; `POST /commitment-occurrences/{id}/payments` links/records payments idempotently |
 | Goals | `GET/POST /goals`, `PUT/DELETE /goals/{id}`; deletion with funds requires explicit release/reallocation |
 | Funding | `GET/PUT /funding/snapshot`, `GET/PUT /funding/plan`, `GET /funding/availability`; all outputs include revision/completeness/freshness |
-| Wishlist | `GET/POST /wishlist`, `PUT /wishlist/{id}` for item fields and lifecycle changes; money release is a separate explicit operation |
+| Wishlist | `GET/POST /wishlist`, `PUT/DELETE /wishlist/{id}` for item fields and lifecycle changes; money release is a separate explicit operation |
 | Reservations | `POST /funding/allocations`, `/funding/releases`, `/funding/reallocations`; require expected revision and idempotency key; cannot overspend unallocated cash |
-| Readiness | `POST /wishlist/{id}/readiness` returns derived status, arithmetic, reasons, quote ID and funding revision; no mutation of funds |
+| Readiness | `GET /wishlist` returns derived status, arithmetic, reasons, quote and funding revision for every item; no mutation of funds |
 | Purchase recording | `POST /wishlist/{id}/purchases` with actual amount/date/category or an existing transaction ID; require idempotency key and expected revision; quote for the prior-snapshot deduction path; explicit reconciliation marker for already-included payments |
-| Purchase reversal | `POST /wishlist-purchases/{id}/reversals`; coordinated event, transaction/reservation reconciliation and invalidation, not ordinary transaction deletion |
+| Purchase reversal | `POST /wishlist-purchases/{id}/reverse` corrects a link while retaining actual spending; `/refund` records separate received income. Both invalidate cash and require reconciliation |
 
 Public exceptions to bearer auth: health, registration/login, reset request/confirmation and refresh with its own token. Logout can identify the refresh credential itself. A local demo endpoint remains development-only. All financial/helper/wishlist operations require authentication, including previews.
 

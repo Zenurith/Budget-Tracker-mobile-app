@@ -48,6 +48,15 @@ class Transaction(BaseModel):
     source: Literal['manual', 'nlp'] = 'manual'
 
 
+class TransactionOperation(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    operation_id: str = Field(min_length=16, max_length=100, pattern=r'^[A-Za-z0-9_-]+$')
+    action: Literal['create', 'update', 'delete']
+    transaction_id: str | None = Field(default=None, max_length=100)
+    expected_version: str | None = Field(default=None, pattern=r'^[0-9a-f]{64}$')
+    transaction: Transaction | None = None
+
+
 class Category(BaseModel):
     name: str = Field(min_length=1, max_length=40)
     type: Literal['income', 'expense'] = 'expense'

@@ -124,21 +124,23 @@ def view(state, plan, user):
     buffer = saved_plan['buffer_amount'] if saved_plan else None
     complete = not missing
     usable = complete and not stale
-    protected = obligations_total + emergency + savings + (buffer or 0)
+    wishlist = sum(state['reservations'].get(id, 0) for id in state.get('wishlist', {}))
+    protected = obligations_total + emergency + savings + wishlist + (buffer or 0)
     # A stale calculation remains inspectable, but never authorizes a contribution.
-    free = max(0, liquid - protected) if liquid is not None and buffer is not None else None
-    shortfall = max(0, protected - liquid) if liquid is not None and buffer is not None else None
+    free = max(0, liquid - protected) if complete and liquid is not None and buffer is not None else None
+    shortfall = max(0, protected - liquid) if complete and liquid is not None and buffer is not None else None
     return {'revision': state['revision'], 'planning_revision': plan['revision'],
             'cash_revision': state['cash_revision'], 'currency': user['currency'],
             'as_of': today.isoformat(), 'timezone': profile.get('timezone'), 'horizon_end': end.isoformat(),
             'schedules': [dict(id=f'{kind}:{s["id"]}', name=s['name']) for kind in ('debts', 'commitments') for s in plan[kind].values()],
             'snapshot': snapshot, 'plan': saved_plan, 'goals': goals, 'occurrences': items,
+            'wishlist': [dict(i, funded_amount=state['reservations'].get(i['id'], 0)) for i in state.get('wishlist', {}).values()],
             'allowances': allowances, 'complete': complete, 'fresh': not stale,
             'usable': usable, 'missing_inputs': missing, 'stale_reasons': stale,
             'liquid_total': liquid, 'scheduled_obligations': scheduled,
             'essential_allowances': allowance_total, 'required_savings': required,
             'obligations_total': obligations_total, 'emergency_reserved': emergency,
-            'savings_reserved': savings, 'wishlist_reserved': 0, 'buffer_amount': buffer,
+            'savings_reserved': savings, 'wishlist_reserved': wishlist, 'buffer_amount': buffer,
             'free_to_allocate': free, 'coverage_shortfall': shortfall,
             'can_allocate': usable and shortfall == 0,
             'has_overdue_obligations': any(i['overdue'] for i in items),
@@ -277,10 +279,12 @@ def allocate(kind, data: Allocation, user, db):
             return previous['result']
         revisions(state, plan, data.expected_revision, data.expected_planning_revision)
         for id in (data.source_id, data.target_id):
-            if id and id not in state['goals']:
+            if id and id not in state['goals'] and id not in state.get('wishlist', {}):
                 raise DomainError(ErrorKind.NOT_FOUND, 'Goal not found.')
-            if id and not state['goals'][id]['included_in_cash']:
+            if id in state['goals'] and not state['goals'][id]['included_in_cash']:
                 invalid('Savings outside included accounts are not part of this cash reservation ledger.')
+        if data.target_id in state.get('wishlist', {}) and state['wishlist'][data.target_id]['status'] != 'active':
+            conflict('Only active wishlist items can receive new reservations.')
         before = view(state, plan, user)
         if kind != 'release' and not before['usable']:
             conflict('Reconcile cash and review the funding plan before reserving or moving money.')

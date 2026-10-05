@@ -39,11 +39,13 @@ class AuthInput {
 }
 
 class MonthlySnapshot {
+  final String? cachedAt;
   final Json summary;
   final List<FinanceCategory> categories;
   final List<Entry> entries;
   final List<Json> budgets;
   MonthlySnapshot({
+    this.cachedAt,
     Json summary = const {},
     List<FinanceCategory> categories = const [],
     List<Entry> entries = const [],
@@ -55,10 +57,12 @@ class MonthlySnapshot {
 }
 
 class EntryDraft {
+  final String? expectedVersion;
   final int amount;
   final String type, categoryId, note, paymentMethod, source;
   final DateTime date;
   const EntryDraft({
+    this.expectedVersion,
     required this.amount,
     required this.type,
     required this.categoryId,
@@ -120,7 +124,7 @@ abstract interface class TransactionRepository {
   Future<EntryPage> searchEntries(EntryFilter filter, int page);
   Future<ParsedEntry> parse(String text, DateTime referenceDate);
   Future<void> saveEntry(EntryDraft draft, {String? id});
-  Future<void> deleteEntry(String id);
+  Future<void> deleteEntry(String id, {String? expectedVersion});
 }
 
 class EntryFilter {
@@ -140,9 +144,10 @@ class EntryFilter {
 }
 
 class EntryPage {
+  final String? cachedAt;
   final List<Entry> entries;
   final int total;
-  EntryPage(List<Entry> entries, this.total)
+  EntryPage(List<Entry> entries, this.total, {this.cachedAt})
     : entries = List.unmodifiable(entries);
 }
 

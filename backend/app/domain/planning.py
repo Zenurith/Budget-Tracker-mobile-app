@@ -315,7 +315,7 @@ def pay(id, data: Payment, user, db):
             if data.amount is not None or data.date is not None:
                 invalid('Choose an existing expense or record a new payment, not both.')
             expense = owned('transactions', data.transaction_id, user, tx)
-            if expense['type'] != 'expense' or expense.get('commitment_occurrence_id'):
+            if expense['type'] != 'expense' or expense.get('commitment_occurrence_id') or expense.get('wishlist_purchase_id'):
                 conflict('Choose an expense that is not already linked to an obligation.')
         else:
             money(data.amount)

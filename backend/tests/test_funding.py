@@ -123,7 +123,7 @@ def test_linked_allowance_partial_payment_reconcile_and_overdue(client):
     setup(client, h)
     today = date.fromisoformat(state(client, h)['as_of'])
     yesterday = (today-timedelta(days=1)).isoformat()
-    r = client.post('/commitments', headers=h, json=schedule(1, amount=10000, frequency='annually', start_date=yesterday)).json()
+    r = client.post('/commitments', headers=h, json=schedule(1, amount=10000, frequency='monthly', start_date=yesterday, end_date=yesterday)).json()
     id = r['commitments'][0]['id']
     before = plan(client, h, essential_allowances=[{'name': 'Housing total', 'amount': 15000, 'schedule_ids': ['commitments:'+id]}])
     assert before['scheduled_obligations'] == 10000
@@ -259,5 +259,53 @@ def test_invalid_dates_amounts_and_incomplete_obligations(client):
     client.put('/financial-profile', headers=h, json=profile(2, debt_confirmation='complete'))
     result = plan(client, h)
     assert not result['complete']
+    assert result['free_to_allocate'] is None
+    assert result['coverage_shortfall'] is None
     assert any('required amount' in m for m in result['missing_inputs'])
     assert result['horizon_end'] == (today+timedelta(days=29)).isoformat()
+
+
+def test_goal_edits_foreign_links_horizon_and_explicit_plan_fields(client, monkeypatch):
+    h, _ = signup(client)
+    setup(client, h)
+    id = goal(client, h)
+    s = plan(client, h)
+    assert move(client, h, amount=10000, target_id=id).status_code == 200
+    s = state(client, h)
+    changed = {'expected_revision': s['revision'], 'currency': 'EUR', 'name': 'Outside', 'kind': 'emergency',
+               'target_amount': 20000, 'included_in_cash': False, 'excluded_balance': 10000}
+    assert client.put('/goals/'+id, headers=h, json=changed).status_code == 409
+    assert client.put('/goals/foreign', headers=h, json=changed).status_code == 404
+    changed.update(included_in_cash=True, excluded_balance=0)
+    assert client.put('/goals/'+id, headers=h, json=changed).status_code == 200
+    assert not state(client, h)['usable']
+    s = plan(client, h)
+    body = dict(reviewed(s), next_income_date=None, buffer_amount=0, monthly_forecast_surplus=0, essential_allowances=[], confirmed=True)
+    today = date.fromisoformat(s['as_of'])
+    for on in (today-timedelta(days=1), today+timedelta(days=367)):
+        assert client.put('/funding/plan', headers=h, json=dict(body, next_income_date=on.isoformat())).status_code == 422
+    assert client.put('/funding/plan', headers=h, json=dict(body, confirmed=False)).status_code == 422
+    assert client.put('/funding/plan', headers=h, json=dict(body, essential_allowances=[{'name':'Rent', 'amount':1, 'schedule_ids':['commitments:foreign']}])).status_code == 404
+    del body['monthly_forecast_surplus']
+    assert client.put('/funding/plan', headers=h, json=body).status_code == 422
+    monkeypatch.setattr(funding.planning, 'today_for', lambda _: today+timedelta(days=1))
+    assert not state(client, h)['usable']
+    assert any('today' in reason for reason in state(client, h)['stale_reasons'])
+
+
+def test_duplicate_accounts_invalid_goals_and_cash_replay(client):
+    h, _ = signup(client)
+    setup(client, h)
+    s = state(client, h)
+    body = dict(reviewed(s), as_of=datetime.now(timezone.utc).isoformat(), confirmed=True,
+                accounts=[{'name':'Bank', 'amount':10}, {'name':' bank ', 'amount':20}])
+    assert client.put('/funding/snapshot', headers=h, json=body).status_code == 422
+    body['accounts'] = [{'name':'Cash', 'amount':0}]
+    assert client.put('/funding/snapshot', headers=h, json=body).status_code == 200
+    assert client.put('/funding/snapshot', headers=h, json=body).status_code == 409
+    s = state(client, h)
+    new_goal = {'expected_revision':s['revision'], 'currency':'EUR', 'name':'Reserve', 'kind':'savings',
+                'target_amount':10000, 'included_in_cash':True}
+    for changes in ({'name':' '}, {'required_amount':100}, {'required_by':s['as_of']},
+                    {'excluded_balance':100}, {'included_in_cash':False, 'required_amount':100, 'required_by':s['as_of']}):
+        assert client.post('/goals', headers=h, json=dict(new_goal, **changes)).status_code == 422

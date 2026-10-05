@@ -1,6 +1,10 @@
 # Guilt-free wishlist specification
 
-Status: required for Release 1; not implemented in the prototype. Covers FR-36–FR-43 and depends on commitments, protected savings and funding data.
+Status: wishlist items, cash reservations, readiness, forecasts, purchase recording, refunds and link corrections are implemented. The prerequisite protected cash, savings goals and reservation ledger are implemented; see [FUNDING.md](FUNDING.md). Covers FR-36–FR-43.
+
+## Using the wishlist
+
+Open **Settings → Financial plan → Open protected funding → Open guilt-free wishlist**. Add an item with its total cost, then explicitly reserve existing cash. Readiness and forecasts are recalculated by the server. Record an actual purchase using either a prior cash snapshot or a reconciled balance that already includes it; the latter can link an existing expense without duplicating it. Purchase history provides refund and link-correction actions. Purchased items can be archived; items with purchase history cannot be deleted.
 
 ## Product promise
 
@@ -92,7 +96,7 @@ Label every forecast “if you save [amount] monthly”; changing a forecast nev
 6. For a payment already included in a reconciled cash snapshot, use the reconciled path: link its existing expense, or explicitly create the missing expense with `baseline_effect=already_reconciled`. Require a newly confirmed snapshot that includes the payment, consume the allocation without deducting cash again, and mark the item `purchased` with readiness `not_assessed` if no pre-purchase quote existed. Validate owner, currency, amount and that it has not funded another item.
 7. Editing/deleting a linked purchase requires a coordinated reversal/reconciliation flow; reject an ordinary transaction edit/delete that would orphan a reservation. A real refund is a separate linked actual event, not a silent history rewrite. Returned funds become unallocated after confirmation; do not automatically re-reserve them.
 
-Supabase funding/purchase writes require Postgres transactions or an equivalently proven atomic aggregate design. Postgres supports transactions, but the current repository only guarantees single-statement atomic writes. Multi-record funding transactions must be implemented and verified before these features are claimed complete.
+Supabase funding/purchase writes require Postgres transactions or an equivalently proven atomic aggregate design. The current repository implements owner-scoped transactions; funding ledger/aggregate writes and concurrent cash invalidation have been verified against live Supabase. Wishlist purchases, refunds and link corrections share this transaction boundary; local and live Supabase rollback/concurrency tests cover their aggregate, event and transaction writes.
 
 ## Worked examples and acceptance cases
 
@@ -117,4 +121,4 @@ Let L=4,000, O=1,200, E=1,000, G=300, W=600 and B=200. Free funding is 700. The 
 | WL-13 More cash expected | Payday expected tomorrow, but no savings reserved | No increase in free funding or readiness |
 | WL-14 Fully funded but overdue | A_i covers cost; a mandatory bill is overdue | Review plan until overdue commitment resolved |
 
-Acceptance also requires ownership, mixed-currency, partial failure, stale-version, deletion/reversal and rounding tests. None of these tests are implemented yet.
+Acceptance also requires ownership, mixed-currency, partial failure, stale-version, deletion/reversal and rounding tests. Funding prerequisites have tests for concurrency, shortfalls, stale/incomplete data, partial bill reconciliation, outside savings and exclusion of future income. The wishlist and funding suites jointly cover WL-01–WL-14, including readiness, purchase/reversal semantics, forecasts and cash reconciliation. Native end-to-end acceptance remains unverified.

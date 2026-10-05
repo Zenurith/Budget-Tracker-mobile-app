@@ -14,6 +14,8 @@ import '../../features/planning/model/planning_repository.dart';
 import '../../features/planning/presenter/planning_presenter.dart';
 import '../../features/budgets/presenter/budget_presenter.dart';
 import '../../features/categories/presenter/category_presenter.dart';
+import '../../features/sync/model/sync_repository.dart';
+import '../../features/sync/presenter/sync_presenter.dart';
 
 /// Presentation composition: relays typed effects, never exposes data adapters.
 class AppPresenters {
@@ -26,6 +28,7 @@ class AppPresenters {
   final FundingPresenter funding;
   final BudgetPresenter budgets;
   final CategoryPresenter categories;
+  final SyncPresenter? sync;
   final List<StreamSubscription<Object?>> _subscriptions = [];
   Account? _account;
   final ExportDestination? exportDestination;
@@ -39,8 +42,10 @@ class AppPresenters {
     required HelperRepository helperRepository,
     required FundingRepository fundingRepository,
     this.exportDestination,
+    SyncRepository? syncRepository,
     DateTime Function()? now,
-  }) : auth = AuthPresenter(authRepository),
+  }) : sync = syncRepository == null ? null : SyncPresenter(syncRepository),
+       auth = AuthPresenter(authRepository),
        overview = OverviewPresenter(overviewRepository, now: now),
        transactions = TransactionPresenter(transactionRepository),
        history = HistoryPresenter(transactionRepository, now: now),
@@ -56,6 +61,7 @@ class AppPresenters {
         _account = state.account;
         unawaited(overview.setAccount(state.account));
         if (changedOwner) {
+          if (state.account != null) unawaited(sync?.synchronize());
           helper.setAccount(state.account);
           funding.setAccount(state.account);
           unawaited(history.setAccount(state.account, overview.month));
@@ -63,11 +69,37 @@ class AppPresenters {
         }
       }),
     );
+    if (sync != null) {
+      _subscriptions.add(
+        sync!.states.listen((state) {
+          if (state.operations.isNotEmpty || state.offline) {
+            funding.invalidate();
+          }
+        }),
+      );
+      _subscriptions.add(
+        sync!.effects.listen((effect) {
+          if (effect is DataChanged) {
+            funding.invalidate();
+            unawaited(history.reload());
+            unawaited(overview.reload());
+          }
+        }),
+      );
+    }
     _subscriptions.add(
       planning.states.listen((state) {
         if (!state.busy && !state.saving && state.data.isNotEmpty) {
           helper.invalidate(state.revision);
           funding.invalidate(planningRevision: state.revision);
+        }
+      }),
+    );
+    _subscriptions.add(
+      funding.effects.listen((effect) {
+        if (effect is DataChanged) {
+          unawaited(history.reload());
+          unawaited(overview.reload());
         }
       }),
     );
@@ -115,5 +147,6 @@ class AppPresenters {
     funding.dispose();
     budgets.dispose();
     categories.dispose();
+    sync?.dispose();
   }
 }

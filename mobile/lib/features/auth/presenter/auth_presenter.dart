@@ -33,6 +33,12 @@ class AuthPresenter extends Presenter<AuthState> {
   String? validatePassword(String? value, bool register) =>
       InputRules.password(value, register: register);
   void clearError() => emit(AuthState(account: state.account));
+
+  /// Locks the UI for fresh credentials while preserving unsynced device work.
+  void signInAgain() {
+    if (!state.busy && !disposed) emit(const AuthState());
+  }
+
   Future<bool> updateProfile(String name) async {
     if (state.busy || state.account == null || disposed) return false;
     final account = state.account;

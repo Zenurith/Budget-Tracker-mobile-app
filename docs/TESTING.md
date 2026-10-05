@@ -1,5 +1,26 @@
 # Testing and verification
 
+## Offline synchronization validation on 2026-10-05 (macOS)
+
+- Backend: **130 passed, 7 opt-in live tests skipped locally**, **94.51% coverage**. Sync tests verify version conflicts, ownership, linked-record guards, replay after deletion, export exclusion, account cleanup and atomic rollback/concurrent retries.
+- New live Supabase transaction-sync test: **1 passed** using two independent pools. Verified one transaction per retry ID, one winner for conflicting edits, and rollback of transaction, cash marker and replay record. Temporary records were cleaned up. The six previously passing integration tests were not rerun for this slice.
+- Flutter: **78 passed**; plain Dart: **43 passed**. New coverage includes cache age/restart, lost-response replay, conflict review, storage failure before transmission, account isolation, expired-session reauthentication, pending-data export, sign-out cleanup, late reads, duplicate sync prevention and conflict confirmation at 200% phone text. Dashboard goldens passed unchanged.
+- Web release build and Wasm compatibility dry run succeeded. Native secure-store/restart/device journeys, full accessibility, performance/NLP benchmarks and production operations remain unverified. See [OFFLINE.md](OFFLINE.md).
+
+## Wishlist validation on 2026-10-05 (macOS)
+
+- Live Supabase: **all 6 integration tests passed**, including wishlist purchase retries across independent pools, competing reservations/purchases and rollback after purchase/refund/link-correction writes. Temporary records were cleaned up; no migration was required. Read-only inspection confirmed RLS and no schema/table privileges for `anon` or `authenticated`.
+- Backend: **127 passed, 6 opt-in live tests skipped locally**, **94.34% coverage**. Wishlist tests cover savings-only readiness, shortfalls, paused funds, forecasts, stale quotes, actual costs, reconciled existing/missing expenses, retry deduplication, refunds, link correction, ownership/currency, export/deletion and monthly reporting. Funding tests cover partial bills, outside-account savings and exclusion of future income; together these exercise WL-01–WL-14.
+- Flutter: **66 passed**; plain Dart: **41 passed**; analysis clean. Includes purchase confirmations, stable retry keys, logout suppression, failed refresh after commit, 200% phone text, complete wishlist reloads after funding edits and existing-expense pagination. Dashboard goldens passed unchanged.
+- Web release build and Wasm compatibility dry run succeeded. `git diff --check` passed. Native builds/device journeys, full screen-reader coverage and production performance remain unverified.
+
+## Protected funding checks on 2026-10-02 (macOS)
+
+- Backend: **118 passed, 5 opt-in live tests skipped locally**, **94.55% coverage**. Funding tests cover cash/forecast separation, missing versus zero, explicit confirmations, linked allowances, partial bill reconciliation, required reserves, outside savings, allocation/release/reallocation, stale data/revisions, goal guards, ownership/currency, retries, history, export/deletion and rollback.
+- Live Supabase: **all 5 integration tests passed**. The funding test verifies persistence across two pools, same-key concurrent retries, competing allocations, event/aggregate rollback, expense/cash-marker rollback and allocation racing with an expense. Existing payment, helper and account integration checks also pass. Temporary records were cleaned up; no migration was needed.
+- Flutter: **56 passed**; plain Dart: **35 passed**; analysis clean. Funding tests cover immutable state, late reads after sign-out/disposal, stale data, currency/revision forwarding, retry keys, duplicate submissions, failed refresh after a committed allocation, explicit cash/plan confirmation and a phone at 200% text. Existing dashboard goldens remain unchanged.
+- Web release build and Wasm compatibility dry run succeeded. Native builds, physical-device journeys, full screen-reader coverage and production performance remain unverified. These tests do not validate the future wishlist purchase/reversal flows.
+
 ## Financial helper checks on 2026-10-01 (macOS)
 
 - Backend: **107 passed, 4 skipped**, **93.97% coverage**. All FH-01–FH-12 are covered, including partial availability, zero denominators, >100% ratios, required versus extra/paid amounts, normalization, currency/ownership, effective dates and scenario isolation. Additional tests cover half-up rounding, review age, targets, report dates, immutable snapshots, revision conflicts, explicit save, replay, pagination, export/deletion and rollback.
@@ -96,7 +117,7 @@ Windows uses `mobile/test/goldens/windows/`; other platforms retain the original
 - Flutter web release build succeeded, including the Wasm compatibility dry run. Native builds remain unverified.
 - At that revision, remaining migration work included backend auth infrastructure coupling, shared transport/domain request models and broader widget coverage. The backend boundaries were completed on 2026-09-29 (see above).
 
-The historical checks below did not cover the financial helper; the October checks above do. Wishlist and protected funding remain unimplemented.
+The historical checks below did not cover the financial helper; the October checks above do. Protected funding is covered by the October 2 suite; wishlist is covered by the October 5 suite.
 
 ## Prototype verification on 2026-09-28 (before the revised architecture/features)
 

@@ -14,6 +14,7 @@ import 'entry_editor.dart';
 import 'profile_editor.dart';
 import 'transaction_filters.dart';
 import 'planning_screen.dart';
+import 'sync_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final AppPresenters presenters;
@@ -22,11 +23,24 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   int page = 0;
   String search = '', filter = 'all';
   String? categoryFilter;
   final searchField = TextEditingController();
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      widget.presenters.sync?.synchronize();
+    }
+  }
+
   OverviewPresenter get c => widget.presenters.overview;
   final titles = ['Overview', 'Transactions', 'Budgets', 'Reports', 'Settings'];
   final icons = [
@@ -38,6 +52,7 @@ class _HomeScreenState extends State<HomeScreen> {
   ];
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     searchField.dispose();
     super.dispose();
   }
@@ -125,6 +140,19 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
                   if (c.busy) const LinearProgressIndicator(minHeight: 2),
+                  if (widget.presenters.sync != null)
+                    SyncBanner(
+                      presenter: widget.presenters.sync!,
+                      reauthenticate: widget.presenters.auth.signInAgain,
+                      currency: c.currency,
+                    ),
+                  if (c.state.data.cachedAt != null)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: Text(
+                        'Cached estimate from ${c.state.data.cachedAt}. Pending changes are shown in Offline & sync and are not included in these totals.',
+                      ),
+                    ),
                   if (c.error != null)
                     MaterialBanner(
                       content: Text(c.error!),
@@ -796,6 +824,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     try {
                       if (!await widget.presenters.transactions.delete(
                         entry.id,
+                        expectedVersion: entry.version,
                       )) {
                         message(
                           widget.presenters.transactions.state.error ??
@@ -840,6 +869,10 @@ class _HomeScreenState extends State<HomeScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        if (history.state.cachedAt != null)
+          Text(
+            'Cached transactions from ${history.state.cachedAt}. Pending changes are listed in Offline & sync.',
+          ),
         Wrap(
           spacing: 12,
           runSpacing: 12,
@@ -1386,9 +1419,26 @@ class _HomeScreenState extends State<HomeScreen> {
               child: const Text('Open financial helper'),
             ),
           ],
-          const Text(
-            'Savings and wishlist progress will appear when those modules are available.',
-          ),
+          if (review['funding'] != null) ...[
+            Text(
+              'Savings and wishlist',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            Text(
+              'Current reservations as of ${review['funding']['as_of']}; these are not historical month-end balances.',
+            ),
+            Text(
+              'Emergency: ${money(review['funding']['current_reserves']['emergency_reserved'], c.currency)} · Savings: ${money(review['funding']['current_reserves']['savings_reserved'], c.currency)} · Wishlist: ${money(review['funding']['current_reserves']['wishlist_reserved'], c.currency)}',
+            ),
+            if (review['funding']['usable'] != true)
+              const Text('Cash and plan need review.'),
+            Text(
+              'Wishlist purchases this month: ${review['funding']['purchase_count']} · ${money(review['funding']['purchase_total'], c.currency)}',
+            ),
+            Text(
+              'Recorded wishlist refunds this month: ${money(review['funding']['refund_total'], c.currency)}',
+            ),
+          ],
         ],
       ),
     );
@@ -1474,6 +1524,21 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             const SizedBox(height: 12),
             Text('Account currency: ${c.currency}'),
+            if (widget.presenters.sync != null)
+              TextButton.icon(
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute<void>(
+                    builder: (_) => SyncScreen(
+                      presenter: widget.presenters.sync!,
+                      reauthenticate: widget.presenters.auth.signInAgain,
+                      currency: c.currency,
+                    ),
+                  ),
+                ),
+                icon: const Icon(Icons.sync),
+                label: const Text('Offline & sync'),
+              ),
             const SizedBox(height: 12),
             const Text(
               'All amounts use your account currency. Natural entry is processed on the server without an external AI service.',

@@ -9,7 +9,10 @@ from . import planning_schemas as ps
 from ..domain import planning, planning_commands as pc
 from ..domain import financial_helper as helper
 from . import helper_schemas as hs
+from .wishlist_routes import build_wishlist_router
 from .funding_routes import build_funding_router
+from .schemas import TransactionOperation
+from ..domain import transaction_sync
 
 
 def build_router(auth, mode):
@@ -177,6 +180,17 @@ def build_router(auth, mode):
     def add_transaction(data: Transaction, user=Depends(current), db=Depends(repo)):
         return finance.add_transaction(data=commands.Transaction(**data.model_dump()), user=user, db=db)
 
+    @router.post('/transactions/sync')
+    def sync_transaction(data: TransactionOperation, user=Depends(current), db=Depends(repo)):
+        values = data.model_dump()
+        if values['transaction'] is not None:
+            values['transaction'] = commands.Transaction(**values['transaction'])
+        return transaction_sync.apply(transaction_sync.Operation(**values), user, db)
+
+    @router.get('/transactions/{id}')
+    def get_transaction(id: str, user=Depends(current), db=Depends(repo)):
+        return finance.transaction_view(finance.owned('transactions', id, user, db))
+
     @router.put('/transactions/{id}')
     def edit_transaction(id: str, data: Transaction, user=Depends(current), db=Depends(repo)):
         return finance.edit_transaction(id=id, data=commands.Transaction(**data.model_dump()), user=user, db=db)
@@ -214,4 +228,5 @@ def build_router(auth, mode):
         return seed_demo(data.currency, db, auth)
 
     router.include_router(build_funding_router(current, repo))
+    router.include_router(build_wishlist_router(current, repo))
     return router

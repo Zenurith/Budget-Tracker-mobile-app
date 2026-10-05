@@ -127,7 +127,7 @@ class FundingPresenter extends Presenter<FundingState> {
   }) async {
     if (_account == null || disposed || !state.editable) return false;
     final owner = _owner;
-    _request++;
+    final request = ++_request;
     emit(copy(saving: true));
     try {
       final result = await operation();
@@ -137,13 +137,19 @@ class FundingPresenter extends Presenter<FundingState> {
       } else {
         emit(
           FundingState(
-            data: result,
+            data: {
+              ...result,
+              if (!result.containsKey('categories'))
+                'categories': state.data['categories'] ?? [],
+            },
+            stale: request != _request,
             events: state.events,
             page: state.page,
             total: state.total,
           ),
         );
       }
+      if (owner == _owner && !disposed) effect(const DataChanged());
       return owner == _owner && !disposed;
     } catch (e) {
       if (owner == _owner && !disposed) emit(copy(error: e.toString()));
@@ -152,18 +158,21 @@ class FundingPresenter extends Presenter<FundingState> {
   }
 
   Future<bool> saveSnapshot(Json draft) =>
-      _save(() => _repository.saveSnapshot(reviewed(draft)));
+      _save(() => _repository.saveSnapshot(reviewed(draft)), refresh: true);
   Future<bool> savePlan(Json draft) =>
-      _save(() => _repository.savePlan(reviewed(draft)));
+      _save(() => _repository.savePlan(reviewed(draft)), refresh: true);
   Future<bool> saveGoal(Json draft, {String? id}) => _save(
     () => _repository.saveGoal({
       ...draft,
       'currency': _account!.currency,
       'expected_revision': state.data['revision'],
     }, id: id),
+    refresh: true,
   );
-  Future<bool> deleteGoal(String id) =>
-      _save(() => _repository.deleteGoal(id, state.data['revision'] as int));
+  Future<bool> deleteGoal(String id) => _save(
+    () => _repository.deleteGoal(id, state.data['revision'] as int),
+    refresh: true,
+  );
   Future<bool> move(String kind, Json draft) async {
     if (_account == null || disposed || !state.editable) return false;
     final amount = draft['amount'];
@@ -191,5 +200,62 @@ class FundingPresenter extends Presenter<FundingState> {
       _pending = null;
     }
     return result;
+  }
+
+  Future<List<Json>> purchaseExpenses(String date, int amount) async {
+    if (_account == null || disposed) return [];
+    final owner = _owner;
+    final result = await _repository.expenses(date, amount);
+    if (owner != _owner || disposed) return [];
+    return (result['items'] as List)
+        .cast<Json>()
+        .where(
+          (e) =>
+              e['wishlist_purchase_id'] == null &&
+              e['commitment_occurrence_id'] == null,
+        )
+        .map(freezeJson)
+        .toList(growable: false);
+  }
+
+  Future<bool> saveWishlist(Json draft, {String? id}) => _save(
+    () => _repository.saveWishlist({
+      ...draft,
+      'currency': _account!.currency,
+      'expected_revision': state.data['revision'],
+    }, id: id),
+  );
+  Future<bool> deleteWishlist(String id) => _save(
+    () => _repository.deleteWishlist(id, state.data['revision'] as int),
+  );
+
+  Future<bool> recordPurchase(String id, Json draft) =>
+      _record(id, 'purchase', draft);
+  Future<bool> adjustPurchase(String id, String kind, Json draft) =>
+      _record(id, kind, draft);
+  Future<bool> _record(String id, String kind, Json draft) async {
+    if (_account == null || disposed || !state.editable) return false;
+    final fingerprint = jsonEncode([id, kind, draft]);
+    if (_fingerprint != fingerprint) {
+      _fingerprint = fingerprint;
+      _pending = {
+        ...draft,
+        'operation_id': base64UrlEncode(
+          List.generate(24, (_) => Random.secure().nextInt(256)),
+        ).replaceAll('=', ''),
+      };
+    }
+    final pending = Map<String, dynamic>.of(_pending!);
+    final ok = await _save(() {
+      final payload = reviewed(pending);
+      if (kind == 'purchase') return _repository.purchase(id, payload);
+      payload.remove('expected_planning_revision');
+      return _repository.adjustPurchase(id, kind, payload);
+    }, refresh: true);
+    if (ok) {
+      _pending = null;
+      _fingerprint = null;
+    }
+    return ok;
   }
 }

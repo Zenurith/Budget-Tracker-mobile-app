@@ -1,5 +1,6 @@
 """Budget tracking use cases. No HTTP or UI dependencies."""
 import hashlib
+import json
 from dataclasses import asdict
 from collections import defaultdict
 from datetime import date, datetime, timezone
@@ -25,6 +26,10 @@ def owned(collection, id, user, db: DocumentRepository):
     if not doc:
         raise DomainError(ErrorKind.NOT_FOUND, 'Item not found.')
     return doc
+
+def transaction_view(doc):
+    version = hashlib.sha256(json.dumps(doc, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+    return dict(doc, version=version)
 
 def list_categories(user=None, db: DocumentRepository = None):
     return {'items': categories(user, db)}
@@ -62,7 +67,7 @@ def list_transactions(start: date | None=None, end: date | None=None, category_i
     docs = db.find('transactions', user_id=user['id'])
     docs = [d for d in docs if (not start or d['date'] >= start.isoformat()) and (not end or d['date'] <= end.isoformat()) and (not category_id or d['category_id'] == category_id) and (not type or d['type'] == type) and (q.lower() in d['note'].lower() or q.lower() in names.get(d['category_id'], '')) and (min_amount is None or d['amount'] >= min_amount) and (max_amount is None or d['amount'] <= max_amount)]
     docs.sort(key=lambda d: (d['date'], d['created_at'], d['id']), reverse=True)
-    return {'items': docs[(page - 1) * page_size:page * page_size], 'total': len(docs), 'page': page, 'page_size': page_size}
+    return {'items': [transaction_view(d) for d in docs[(page - 1) * page_size:page * page_size]], 'total': len(docs), 'page': page, 'page_size': page_size}
 
 def add_transaction(data: Transaction, user=None, db: DocumentRepository = None):
     with db.atomic(user['id']) as db:
@@ -73,6 +78,8 @@ def add_transaction(data: Transaction, user=None, db: DocumentRepository = None)
 
 def edit_transaction(id: str, data: Transaction, user=None, db: DocumentRepository = None):
     with db.atomic(user['id']) as db:
+        if owned('transactions', id, user, db).get('wishlist_purchase_id'):
+            raise DomainError(ErrorKind.CONFLICT, 'Reverse the wishlist purchase link before editing or deleting linked activity.')
         if owned('transactions', id, user, db).get('commitment_occurrence_id'):
             raise DomainError(ErrorKind.CONFLICT, 'Unlink this payment from its obligation before editing or deleting the expense.')
         old = owned('transactions', id, user, db)
@@ -83,6 +90,8 @@ def edit_transaction(id: str, data: Transaction, user=None, db: DocumentReposito
 
 def delete_transaction(id: str, user=None, db: DocumentRepository = None):
     with db.atomic(user['id']) as db:
+        if owned('transactions', id, user, db).get('wishlist_purchase_id'):
+            raise DomainError(ErrorKind.CONFLICT, 'Reverse the wishlist purchase link before editing or deleting linked activity.')
         if owned('transactions', id, user, db).get('commitment_occurrence_id'):
             raise DomainError(ErrorKind.CONFLICT, 'Unlink this payment from its obligation before editing or deleting the expense.')
         owned('transactions', id, user, db)
@@ -137,6 +146,8 @@ def summary(month: str=None, user=None, db: DocumentRepository = None):
         'previous_record_count': sum(d['date'].startswith(trend[-2]['month']) for d in docs),
         'budget_variances': list_budgets(month, user, db)['items'],
     }
+    from .wishlist import monthly_review
+    review['funding'] = monthly_review(month, user, db)
     return {'month': month, 'income': income, 'expenses': expense, 'balance': sum((d['amount'] * (1 if d['type'] == 'income' else -1) for d in docs if d['date'][:7] <= month)), 'net': income - expense, 'category_breakdown': dict(by_category), 'daily_expenses': dict(sorted(daily.items())), 'trend': trend, 'review': review}
 
 def parse_entry(data: ParseRequest, user=None, db: DocumentRepository = None):

@@ -39,5 +39,7 @@ class TransactionPresenter extends ActionPresenter {
     );
   }
 
-  Future<bool> delete(String id) => perform(() => _repository.deleteEntry(id));
+  Future<bool> delete(String id, {String? expectedVersion}) => perform(
+    () => _repository.deleteEntry(id, expectedVersion: expectedVersion),
+  );
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'wishlist_screen.dart';
 import '../core/view/presenter_builder.dart';
 import '../features/funding/presenter/funding_presenter.dart';
 import '../features/planning/model/input_rules.dart';
@@ -57,7 +58,10 @@ class _FundingScreenState extends State<FundingScreen> {
           ? 'Needs confirmation'
           : money(data[key] as int, currency);
       final goals = (data['goals'] as List? ?? []).cast<Json>();
-      final names = {for (final goal in goals) goal['id']: goal['name']};
+      final names = {
+        for (final goal in [...goals, ...data['wishlist'] as List? ?? []])
+          goal['id']: goal['name'],
+      };
       return Scaffold(
         appBar: AppBar(
           title: const Text('Protected funding'),
@@ -91,6 +95,18 @@ class _FundingScreenState extends State<FundingScreen> {
                 onPressed: state.saving ? null : p.reload,
                 child: const Text('Retry / refresh'),
               ),
+            OutlinedButton.icon(
+              onPressed: state.saving
+                  ? null
+                  : () => Navigator.push(
+                      context,
+                      MaterialPageRoute<void>(
+                        builder: (_) => WishlistScreen(presenter: p),
+                      ),
+                    ),
+              icon: const Icon(Icons.favorite_border),
+              label: const Text('Open guilt-free wishlist'),
+            ),
             if (data.isNotEmpty) ...[
               Card(
                 child: Padding(
@@ -126,6 +142,7 @@ class _FundingScreenState extends State<FundingScreen> {
                       Text(
                         'Other savings reserved: ${amount('savings_reserved')}',
                       ),
+                      Text('Wishlist reserved: ${amount('wishlist_reserved')}'),
                       Text('Additional buffer: ${amount('buffer_amount')}'),
                       const Divider(),
                       Text(
@@ -141,7 +158,7 @@ class _FundingScreenState extends State<FundingScreen> {
                         ),
                       if (data['has_overdue_obligations'] == true)
                         const Text(
-                          'Overdue obligations need payment resolution before future wishlist readiness.',
+                          'Overdue obligations need payment resolution before wishlist readiness.',
                         ),
                       if (data['has_unfunded_required_savings'] == true)
                         const Text(
@@ -320,7 +337,9 @@ class _FundingScreenState extends State<FundingScreen> {
                     '${event['kind']} · ${money(event['amount'], currency)}',
                   ),
                   subtitle: Text(
-                    '${event['source_id'] == null ? 'Unallocated cash' : names[event['source_id']] ?? 'Former goal'} → ${event['target_id'] == null ? 'Unallocated cash' : names[event['target_id']] ?? 'Former goal'}\n${event['created_at']}',
+                    event['item_id'] != null
+                        ? '${names[event['item_id']] ?? 'Wishlist item'} · ${event['created_at']}'
+                        : '${event['source_id'] == null ? 'Unallocated cash' : names[event['source_id']] ?? 'Former goal'} → ${event['target_id'] == null ? 'Unallocated cash' : names[event['target_id']] ?? 'Former goal'}\n${event['created_at']}',
                   ),
                 ),
               if (state.events.length < state.total)
@@ -679,8 +698,12 @@ class _FundingEditorState extends State<FundingEditor> {
                         labelText: 'Destination goal',
                       ),
                       items: [
-                        for (final goal in data['goals'] as List)
-                          if (goal['included_in_cash'] == true &&
+                        for (final goal in [
+                          ...data['goals'] as List,
+                          ...data['wishlist'] as List? ?? [],
+                        ])
+                          if ((goal['included_in_cash'] == true ||
+                                  goal['status'] == 'active') &&
                               goal['id'] != widget.goal!['id'])
                             DropdownMenuItem(
                               value: goal['id'] as String,

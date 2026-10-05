@@ -1,6 +1,6 @@
 # Implementation status
 
-Updated 2026-10-01. The tracking prototype now uses feature presenters and a layered backend. Name editing and personal-data JSON export are implemented. Financial profiles, debt schedules and recurring commitments are implemented. DSR/DTI calculations, scenarios, personal ratio targets and saved snapshots are implemented. Protected funding and wishlist remain unimplemented.
+Updated 2026-10-05. The tracking prototype now uses feature presenters and a layered backend. Name editing and personal-data JSON export are implemented. Financial profiles, debt schedules and recurring commitments are implemented. DSR/DTI calculations, scenarios, personal ratio targets and saved snapshots are implemented. Protected funding and the guilt-free wishlist are implemented.
 
 ## Architecture migration verified
 
@@ -29,7 +29,7 @@ Open **Settings → Financial plan**, or the planning link under Budgets. Enter 
 
 Debt and recurring-bill schedules generate a monthly agenda with month-end/leap-year handling and partial/paid/overdue states. Record an already-made payment or select an existing expense; retries cannot create a duplicate expense. Unlink before editing/deleting a linked expense. Schedule terms with linked history are protected; close the schedule and create a replacement when terms change. Reads never automatically post expenses.
 
-Planning is saved as owner-scoped `collection = planning` documents in the existing **pocketwise.documents** table, not new public tables. Export and account deletion include planning. No real-user sample data is inserted. The financial helper uses these inputs for DSR/DTI. Cash availability and wishlist results remain unimplemented.
+Planning is saved as owner-scoped `collection = planning` documents in the existing **pocketwise.documents** table, not new public tables. Export and account deletion include planning. No real-user sample data is inserted. The financial helper uses these inputs for DSR/DTI. Protected funding provides reconciled cash availability; wishlist readiness uses these reconciled cash inputs.
 
 ## Financial helper now available
 
@@ -39,6 +39,22 @@ Named snapshots preserve the formula version, exact declared inputs, decimal out
 
 Reports includes ratios based on currently declared schedules at the selected month's end, or today for the current month. Past/future calculations explicitly state that they are not historical income records or guaranteed forecasts. Variable income continues to use explicit monthly estimates; automatic historical averaging is future work. Gemini remains inactive.
 
+## Protected funding now available
+
+**Settings → Financial plan → Open protected funding** supports named-account cash reconciliation, the confirmed-income-date/30-day horizon, linked essential allowances, buffers, future surplus, emergency/savings goals and explicit reserve/release/reallocation actions. Outside-account savings are recorded separately. Dated required reserves move from unfunded obligations into funded savings without double counting. See [FUNDING.md](FUNDING.md).
+
+Cash and planning changes invalidate reviewed inputs. Ordinary expense recording remains available and marks cash for reconciliation. All funding mutations use the same owner transaction lock as transaction/payment writes, with an append-only reservation event ledger, revision checks and idempotent retries. Funding/events live in the existing private document table and are included in export/deletion; no migration is needed. Wishlist allocations, readiness, forecasts, purchases, refunds and link corrections are implemented; see [WISHLIST.md](WISHLIST.md).
+
+## Guilt-free wishlist now available
+
+**Protected funding → Open guilt-free wishlist** supports item lifecycle, priority, total cost, notes/reference URLs, explicit reservations, readiness reasons and monthly contribution forecasts. Paused/archived items keep their reservations. Forecast contributions never become available cash.
+
+Actual purchase recording supports deduction from a reviewed prior snapshot or linking/creating an expense already included in reconciled cash. Purchases consume reservations atomically and preserve an idempotent audit record. Refunds record separate income; link corrections keep the original actual entries and require reconciliation. Reports include current reserves and monthly purchases/refunds; export/deletion includes wishlist records. See [WISHLIST.md](WISHLIST.md).
+
+## Offline records now available
+
+Recent transaction pages, categories, budgets and report snapshots remain readable with visible cache times when offline. Ordinary transaction creates/edits/deletes are durably queued with stable IDs; server version conflicts require explicit review. **Settings → Offline & sync** shows pending changes separately from totals and permits retry, review and conflict resolution. Session reauthentication preserves queued work. Pending transactions block protected-funding operations until resolved. See [OFFLINE.md](OFFLINE.md).
+
 ## Required gaps under the revised baseline
 
 | Area | Current state | Required change |
@@ -46,22 +62,43 @@ Reports includes ratios based on currently declared schedules at the selected mo
 | Model–View–Presenter | Feature presenters, repository interfaces and client dependency tests implemented | Preserve backend dependency gates and expand widget state coverage as new features arrive |
 | Country-neutral onboarding | Explicit currency required for registration and demo in UI/API; no default selection | Preserve this requirement in future profile and financial flows |
 | Financial helper | DSR/DTI, arithmetic explanations, personal targets, scenarios, saved snapshots and report ratios implemented | Optional Gemini explanations; native journey verification |
-| Guilt-free wishlist | Not implemented | Items, funded reservations, readiness, forecast dates, purchase links and reversal flows |
-| Cash/obligation model | Scheduled occurrences and partial/full payment links implemented | Reconciled liquid snapshot, funding horizon and protected allocations |
-| Savings/emergency reserves | Not implemented | Goals and protected funded allocations |
-| Atomic funding | Payment transactions, revisions and idempotency implemented; funding not implemented | Reservation/funding invariants and concurrency |
+| Guilt-free wishlist | Items, reservations, readiness, forecasts, purchases, refunds and link corrections implemented | Native end-to-end acceptance |
+| Cash/obligation model | Reconciled liquid snapshot, horizon, linked allowances, partial-payment obligations and cash invalidation implemented | Preserve purchase reconciliation guards |
+| Savings/emergency reserves | Inside/outside goals, dated required reserves and reserve/release/reallocation implemented | Recurring savings automation |
+| Atomic funding | Owner transactions, event ledger, revision checks, retries and live concurrency/rollback verified | Native journey verification |
 | Account completeness | Name editing and personal-data JSON export implemented; password reset deferred by user on 2026-09-30 | Resume account recovery when requested; extend export/deletion when new entities arrive |
-| Offline support | Not implemented | Cache, transaction queue, stable operation IDs and conflict resolution |
+| Offline support | Recent cached records, durable transaction create/edit/delete queue, version conflicts and retry-safe replay implemented | Native restart/secure-storage acceptance; see [OFFLINE.md](OFFLINE.md) |
 | Accessibility/performance | Basic responsive tests only | 200% text/device/screen-reader/performance acceptance checks |
 | Production readiness | Local development only | HTTPS, encrypted storage, secrets, backups, distributed limits and monitoring |
 
-Additional remaining items: goal/wishlist monthly-review sections, and the R2/later features listed in the requirements. Existing transaction totals must not be used as verified cash to simulate a completed wishlist feature.
+Monthly review now includes current reserves and recorded wishlist purchase/refund totals. Remaining items include the R2/later features listed in the requirements. Existing transaction totals must not be used as verified cash to simulate a completed wishlist feature.
 
 ## Compatibility
 
 Original requirement: Android 8+ and iOS 13+. Generated iOS target: 15.0. Android follows the installed Flutter SDK minimum. This discrepancy is unresolved; the project has not established its native release support matrix.
 
-## Current validation on 2026-10-01 (macOS)
+## Offline synchronization validation on 2026-10-05 (macOS)
+
+- Backend: **130 passed, 7 opt-in live tests skipped locally**, **94.51% coverage**. Sync tests verify version conflicts, ownership, linked-record guards, replay after deletion, export exclusion, account cleanup and atomic rollback/concurrent retries.
+- New live Supabase transaction-sync test: **1 passed** using two independent pools. Verified one transaction per retry ID, one winner for conflicting edits, and rollback of transaction, cash marker and replay record. Temporary records were cleaned up. The six previously passing integration tests were not rerun for this slice.
+- Flutter: **78 passed**; plain Dart: **43 passed**. New coverage includes cache age/restart, lost-response replay, conflict review, storage failure before transmission, account isolation, expired-session reauthentication, pending-data export, sign-out cleanup, late reads, duplicate sync prevention and conflict confirmation at 200% phone text. Dashboard goldens passed unchanged.
+- Web release build and Wasm compatibility dry run succeeded. Native secure-store/restart/device journeys, full accessibility, performance/NLP benchmarks and production operations remain unverified. See [OFFLINE.md](OFFLINE.md).
+
+## Wishlist validation on 2026-10-05 (macOS)
+
+- Live Supabase: **all 6 integration tests passed**, including wishlist purchase retries across independent pools, competing reservations/purchases and rollback after purchase/refund/link-correction writes. Temporary records were cleaned up; no migration was required. Read-only inspection confirmed RLS and no schema/table privileges for `anon` or `authenticated`.
+- Backend: **127 passed, 6 opt-in live tests skipped locally**, **94.34% coverage**. Wishlist tests cover savings-only readiness, shortfalls, paused funds, forecasts, stale quotes, actual costs, reconciled existing/missing expenses, retry deduplication, refunds, link correction, ownership/currency, export/deletion and monthly reporting. Funding tests cover partial bills, outside-account savings and exclusion of future income; together these exercise WL-01–WL-14.
+- Flutter: **66 passed**; plain Dart: **41 passed**; analysis clean. Includes purchase confirmations, stable retry keys, logout suppression, failed refresh after commit, 200% phone text, complete wishlist reloads after funding edits and existing-expense pagination. Dashboard goldens passed unchanged.
+- Web release build and Wasm compatibility dry run succeeded. `git diff --check` passed. Native builds/device journeys, full screen-reader coverage and production performance remain unverified.
+
+## Previous validation on 2026-10-02 (macOS)
+
+- Backend: **118 passed, 5 opt-in live tests skipped locally**, **94.55% coverage**. Funding tests cover cash/forecast separation, missing versus zero, explicit confirmations, linked allowances, partial bill reconciliation, required reserves, outside savings, allocation/release/reallocation, stale data/revisions, goal guards, ownership/currency, retries, history, export/deletion and rollback.
+- Live Supabase: **all 5 integration tests passed**. The funding test verifies persistence across two pools, same-key concurrent retries, competing allocations, event/aggregate rollback, expense/cash-marker rollback and allocation racing with an expense. Existing payment, helper and account integration checks also pass. Temporary records were cleaned up; no migration was needed.
+- Flutter: **56 passed**; plain Dart: **35 passed**; analysis clean. Funding tests cover immutable state, late reads after sign-out/disposal, stale data, currency/revision forwarding, retry keys, duplicate submissions, failed refresh after a committed allocation, explicit cash/plan confirmation and a phone at 200% text. Existing dashboard goldens remain unchanged.
+- Web release build and Wasm compatibility dry run succeeded. Native builds, physical-device journeys, full screen-reader coverage and production performance remain unverified. These tests do not validate the future wishlist purchase/reversal flows.
+
+## Previous validation on 2026-10-01 (macOS)
 
 - Backend: **107 passed, 4 opt-in live tests skipped locally**, **93.97% coverage**. New coverage includes all FH-01–FH-12, half-up rounding, personal targets, report dates, input immutability, source revisions, snapshot pagination/export/deletion, ownership, retries and rollback.
 - New live Supabase snapshot test: **1 passed** against the configured development project. Verified cross-connection persistence, concurrent same-key retries, owner isolation and rollback after a write. Temporary users/plans/snapshots were cleaned up. No schema migration was required.
@@ -87,4 +124,4 @@ Original requirement: Android 8+ and iOS 13+. Generated iOS target: 15.0. Androi
 - Live browser interaction was not rerun during this cleanup.
 - Native device builds and real Supabase Postgres integration were not verified.
 
-The September results cover tracking and planning inputs; the October results add the financial helper. Wishlist, reservations and other remaining R1 requirements are not validated. See [TESTING.md](TESTING.md) for commands and required acceptance suites.
+The September results cover tracking and planning inputs; October adds the financial helper and protected funding. Wishlist checks are recorded in the October 5 validation; other remaining R1 requirements are not validated. See [TESTING.md](TESTING.md) for commands and required acceptance suites.

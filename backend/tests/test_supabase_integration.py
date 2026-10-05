@@ -5,6 +5,7 @@ from uuid import uuid4
 
 import pytest
 
+
 from app.domain.ports import DuplicateRecordError
 from app.repositories.supabase import SupabaseRepository
 from fastapi.testclient import TestClient
@@ -254,3 +255,132 @@ def test_supabase_helper_snapshot_persistence_retry_isolation_and_rollback(monke
             first.close()
             if second:
                 second.close()
+
+
+def test_supabase_funding_atomic_ledger_retries_races_and_cash_changes(monkeypatch):
+    from datetime import date, datetime, timezone
+    from app.domain import funding, planning, finance
+    from app.domain.funding_commands import CashSnapshot, CashAccount, FundingPlan, Goal, Allocation
+    from app.domain.planning_commands import FinancialProfile, IncomeSource
+    from app.domain.commands import Transaction
+    from app.domain.errors import DomainError, ErrorKind
+    url = os.getenv('TEST_SUPABASE_DB_URL')
+    if not url:
+        pytest.skip('Set TEST_SUPABASE_DB_URL to a migrated disposable Supabase project.')
+    first = SupabaseRepository(url)
+    second = None
+    owner, other_id = str(uuid4()), str(uuid4())
+    user = {'id': owner, 'email': owner+'@example.com', 'currency': 'EUR'}
+    other = {'id': other_id, 'email': other_id+'@example.com', 'currency': 'EUR'}
+    def tokens(repo=first):
+        value = funding.availability(user, repo)
+        return {'expected_revision': value['revision'], 'expected_planning_revision': value['planning_revision'], 'currency': 'EUR'}
+    try:
+        second = SupabaseRepository(url)
+        first.put('users', user)
+        first.put('users', other)
+        planning.save_profile(FinancialProfile(expected_revision=0, currency='EUR', timezone='UTC',
+            income_sources=(IncomeSource(name='Salary', currency='EUR', gross=600000, net=500000, frequency='monthly', start_date=date(2020, 1, 1)),),
+            debt_confirmation='none', confirmed=True), user, first)
+        funding.save_snapshot(CashSnapshot(**tokens(), accounts=(CashAccount(name='Cash', amount=70000),),
+                              as_of=datetime.now(timezone.utc), confirmed=True), user, first)
+        ids = []
+        for name in ('Emergency', 'Savings'):
+            value = funding.save_goal(Goal(expected_revision=tokens()['expected_revision'], currency='EUR', name=name,
+                kind='emergency' if name == 'Emergency' else 'savings', target_amount=100000, included_in_cash=True), user, first)
+            ids.append(next(g['id'] for g in value['goals'] if g['name'] == name))
+        funding.save_plan(FundingPlan(**tokens(), next_income_date=None, buffer_amount=0,
+                          monthly_forecast_surplus=999000, essential_allowances=(), confirmed=True), user, first)
+        request = Allocation(**tokens(), operation_id=str(uuid4()), amount=10000, target_id=ids[0])
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            responses = list(pool.map(lambda repo: funding.allocate('allocate', request, user, repo), (first, second)))
+        assert responses[0] == responses[1]
+        assert funding.events(user, second)['total'] == 1
+        assert funding.availability(user, second)['free_to_allocate'] == 60000
+        funding.allocate('reallocate', Allocation(**tokens(), operation_id=str(uuid4()), amount=5000, source_id=ids[0], target_id=ids[1]), user, second)
+        expected = tokens()
+        def competing(repo):
+            try:
+                return funding.allocate('allocate', Allocation(**expected, operation_id=str(uuid4()), amount=50000, target_id=ids[1]), user, repo)
+            except DomainError as error:
+                assert error.kind is ErrorKind.CONFLICT
+                return None
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            results = list(pool.map(competing, (first, second)))
+        assert sum(r is not None for r in results) == 1
+        assert funding.availability(user, second)['free_to_allocate'] == 10000
+        assert funding.events(user, second)['total'] == 3
+        assert funding.events(other, second)['items'] == []
+        with pytest.raises(DomainError) as error:
+            funding.allocate('allocate', Allocation(expected_revision=0, expected_planning_revision=0,
+                currency='EUR', operation_id=str(uuid4()), amount=1, target_id=ids[0]), other, second)
+        assert error.value.kind is ErrorKind.NOT_FOUND
+        before = funding.availability(user, first)
+        original = SupabaseRepository.put
+        def fail(self, collection, doc):
+            if collection == 'funding':
+                raise RuntimeError('simulated failure after event/expense write')
+            return original(self, collection, doc)
+        with monkeypatch.context() as patch:
+            patch.setattr(SupabaseRepository, 'put', fail)
+            with pytest.raises(RuntimeError):
+                funding.allocate('allocate', Allocation(**tokens(), operation_id=str(uuid4()), amount=1000, target_id=ids[0]), user, first)
+            with pytest.raises(RuntimeError):
+                finance.add_transaction(Transaction(amount=100, type='expense', category_id='food', date=date.today()), user, second)
+        assert funding.availability(user, second) == before
+        assert funding.events(user, second)['total'] == 3
+        assert second.find('transactions', user_id=owner) == []
+        expected = tokens()
+        def reserve_during_expense():
+            try:
+                return funding.allocate('allocate', Allocation(**expected, operation_id=str(uuid4()), amount=10000, target_id=ids[0]), user, first)
+            except DomainError as error:
+                assert error.kind is ErrorKind.CONFLICT
+                return None
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            reserve = pool.submit(reserve_during_expense)
+            expense = pool.submit(finance.add_transaction, Transaction(amount=100, type='expense', category_id='food', date=date.today()), user, second)
+            reserve.result(); expense.result()
+        final = funding.availability(user, first)
+        assert not final['usable']
+        assert final['free_to_allocate'] in (0, 10000)
+        assert len(second.find('transactions', user_id=owner)) == 1
+    finally:
+        try:
+            for account in (user, other):
+                for collection in ('planning', 'transactions', 'funding', 'funding_events'):
+                    first.delete(collection, user_id=account['id'])
+                first.delete('users', id=account['id'])
+        finally:
+            first.close()
+            if second:
+                second.close()
+
+
+def test_supabase_wishlist_atomic_purchases_refunds_and_reversals(monkeypatch):
+    from test_wishlist_atomic import exercise_atomicity
+    url = os.getenv('TEST_SUPABASE_DB_URL')
+    if not url:
+        pytest.skip('Set TEST_SUPABASE_DB_URL to a migrated disposable Supabase project.')
+    first, second = SupabaseRepository(url), None
+    try:
+        second = SupabaseRepository(url)
+        exercise_atomicity(first, second, monkeypatch)
+    finally:
+        first.close()
+        if second:
+            second.close()
+
+def test_supabase_transaction_sync_atomicity(monkeypatch):
+    from test_transaction_sync import exercise_sync_atomicity
+    url = os.getenv('TEST_SUPABASE_DB_URL')
+    if not url:
+        pytest.skip('Set TEST_SUPABASE_DB_URL to a migrated disposable Supabase project.')
+    first, second = SupabaseRepository(url), None
+    try:
+        second = SupabaseRepository(url)
+        exercise_sync_atomicity(first, second, monkeypatch)
+    finally:
+        first.close()
+        if second:
+            second.close()

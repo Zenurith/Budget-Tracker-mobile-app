@@ -88,6 +88,6 @@ class AuthService:
 
     def delete_account(self, user=None, db: DocumentRepository = None):
         with db.atomic(user['id']) as tx:
-            for collection in ('transactions', 'budgets', 'categories', 'sessions', 'planning', 'calculation_snapshots', 'funding', 'funding_events'):
+            for collection in ('transactions', 'budgets', 'categories', 'sessions', 'planning', 'calculation_snapshots', 'funding', 'funding_events', 'transaction_operations'):
                 tx.delete(collection, user_id=user['id'])
             tx.delete('users', id=user['id'])

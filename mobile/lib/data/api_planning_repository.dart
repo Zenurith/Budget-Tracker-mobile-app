@@ -17,7 +17,12 @@ class ApiPlanningRepository implements PlanningRepository {
       final batch = (result['items'] as List)
           .map((e) => Entry.fromJson(e as Json))
           .toList();
-      entries.addAll(batch.where((e) => e.commitmentOccurrenceId == null));
+      entries.addAll(
+        batch.where(
+          (e) =>
+              e.commitmentOccurrenceId == null && e.wishlistPurchaseId == null,
+        ),
+      );
       received += batch.length;
       if (received >= (result['total'] as int) || batch.isEmpty) return entries;
     }

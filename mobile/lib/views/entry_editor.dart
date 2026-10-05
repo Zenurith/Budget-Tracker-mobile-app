@@ -90,6 +90,7 @@ class _EntryEditorState extends State<EntryEditor> {
     if (!form.currentState!.validate()) return;
     final saved = await widget.presenters.transactions.save(
       EntryDraft(
+        expectedVersion: widget.entry?.version,
         amount: minorUnits(amount.text)!,
         type: type,
         categoryId: categoryId,

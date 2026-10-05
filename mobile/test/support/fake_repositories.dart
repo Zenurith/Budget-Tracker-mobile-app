@@ -137,7 +137,7 @@ class FakeRepositories
   }
 
   @override
-  Future<void> deleteEntry(String id) async {
+  Future<void> deleteEntry(String id, {String? expectedVersion}) async {
     check();
     deletions++;
   }
@@ -326,6 +326,36 @@ class FakeFundingRepository implements FundingRepository {
     'buffer_amount': null,
     'monthly_forecast_surplus': null,
   };
+  Json? lastWishlist, lastPurchase, lastAdjustment;
+  int purchases = 0;
+  List<Json> expenseItems = [];
+  @override
+  Future<Json> expenses(String date, int amount) async => {
+    'items': expenseItems,
+  };
+  @override
+  Future<Json> saveWishlist(Json draft, {String? id}) async {
+    lastWishlist = draft;
+    return data;
+  }
+
+  @override
+  Future<Json> deleteWishlist(String id, int revision) async => data;
+  @override
+  Future<Json> purchase(String id, Json draft) async {
+    lastPurchase = draft;
+    purchases++;
+    if (failure != null) throw StateError(failure!);
+    return saveGate == null ? {'revision': 1} : await saveGate!.future;
+  }
+
+  @override
+  Future<Json> adjustPurchase(String id, String kind, Json draft) async {
+    lastAdjustment = draft;
+    if (failure != null) throw StateError(failure!);
+    return {'revision': 1};
+  }
+
   String? failure;
   Completer<Json>? loadGate, saveGate;
   Json? lastSnapshot, lastPlan, lastGoal, lastMove;

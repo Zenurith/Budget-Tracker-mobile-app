@@ -4,6 +4,8 @@ Status: target architecture with the initial client migration implemented. Featu
 
 Planning follows the same boundaries through `PlanningPresenter`, `PlanningRepository`, its API adapter and the Python planning domain. The repository `atomic(owner)` contract groups payment/expense/link/revision writes. SQLite uses an immediate transaction; Supabase uses a short Postgres transaction and per-owner advisory lock. Planning mutations use expected revisions; payment operations additionally retain idempotency results. Linked transaction changes and category reference guards share the same owner lock.
 
+Funding follows `FundingPresenter` → `FundingRepository` → API adapter → `funding_routes.py` → immutable funding commands/domain services. Its owner aggregate and append-only reservation events share one transaction. Ordinary transaction writes and planning payments update a monotonic cash revision within that same lock, so expense/funding races cannot authorize an allocation from a superseded cash snapshot. Live Supabase tests verify the concurrency and rollback boundary. See [FUNDING.md](FUNDING.md).
+
 ## Boundaries
 
 The Flutter application uses feature presenters and repository interfaces; new features must preserve these MVP boundaries. The Python backend is a layered API/domain/repository service; HTTP routes are transport adapters, not Flutter presenters. Calling a backend route a controller does not make the client MVC, and renaming FinanceController alone does not implement MVP.
@@ -87,7 +89,7 @@ Observed before the migration (the controller and direct View API calls below ha
 - `mobile/lib/controllers/finance_controller.dart` contained a shared ChangeNotifier controller tightly coupled to Api.
 - `home_screen.dart` and `entry_editor.dart` called the API directly for several operations.
 - `backend/app/main.py` combined routing, security, reports and business behavior.
-- Financial helper, funding ledger and wishlist were absent and remain unimplemented.
+- Financial helper, funding ledger and wishlist were absent. The helper, protected funding and wishlist are now implemented. Wishlist uses the funding presenter and owner aggregate to keep reservations and purchase records consistent.
 
 Migration order:
 

@@ -2,7 +2,7 @@
 
 A personal budget tracker built with Flutter, FastAPI and Supabase Postgres support. The revised [Release 1 requirements](skills_files/budget_tracker_requirements.md) require **Model–View–Presenter (MVP)** architecture, a country-neutral DSR/DTI financial helper and a guilt-free wishlist funded only by saved money.
 
-The runnable tracking prototype now uses feature presenters with tested repository boundaries and a layered backend. Financial profiles, debts, recurring bills and the financial helper are available through **Settings → Financial plan** (also linked from Budgets). The financial helper now provides DSR/DTI calculations, what-if comparisons and explicitly saved snapshots. Protected funding and wishlist remain unimplemented; see [current status](docs/STATUS.md).
+The runnable tracking prototype now uses feature presenters with tested repository boundaries and a layered backend. Financial profiles, debts, recurring bills and the financial helper are available through **Settings → Financial plan** (also linked from Budgets). The financial helper now provides DSR/DTI calculations, what-if comparisons and explicitly saved snapshots. Protected funding, the guilt-free wishlist and basic offline transaction synchronization are implemented; see [current status](docs/STATUS.md).
 
 ## Run locally
 
@@ -85,7 +85,7 @@ Compose runs the API against hosted Supabase; it no longer starts MongoDB. Check
 
 The backend uses a TLS Postgres connection and a small connection pool. See [Supabase's connection guide](https://supabase.com/docs/guides/database/connecting-to-postgres). Keep the database URI on the backend only. It is a database credential, not a publishable or service-role API key.
 
-FastAPI still handles login, password hashing, JWT sessions and user ownership. Supabase Auth is not enabled. The current document repository maps to JSONB records in the private `pocketwise.documents` table, with unique email/budget indexes and atomic session consumption. The migration restricts `anon`/`authenticated` access and enables RLS without client policies; connect as the database owner through the backend. Do not expose this schema through the Data API. Dedicated relational tables and multi-record funding transactions remain future work.
+FastAPI still handles login, password hashing, JWT sessions and user ownership. Supabase Auth is not enabled. The current document repository maps to JSONB records in the private `pocketwise.documents` table, with unique email/budget indexes and atomic session consumption. The migration restricts `anon`/`authenticated` access and enables RLS without client policies; connect as the database owner through the backend. Do not expose this schema through the Data API. Funding now uses an owner aggregate and reservation event documents in atomic Postgres transactions. Wishlist purchases, refunds and link corrections use the same atomic owner transaction. Dedicated relational tables remain future work.
 
 Demo creation is available only in local SQLite mode. Existing SQLite/MongoDB records are **not automatically migrated**. Switching back to `DATABASE_MODE=local` retains your existing SQLite data. Keep the same `JWT_SECRET` across restarts to preserve sessions.
 
@@ -102,7 +102,9 @@ In **Settings**, use **Edit profile** to update your name or **Export my data** 
 - [Product requirements](skills_files/budget_tracker_requirements.md)
 - [Model–View–Presenter architecture](docs/ARCHITECTURE.md)
 - [Financial helper: DSR and DTI](docs/FINANCIAL_HELPER.md)
+- [Protected cash and savings](docs/FUNDING.md)
 - [Guilt-free wishlist rules](docs/WISHLIST.md)
+- [Offline records and sync](docs/OFFLINE.md)
 - [Target data and API contracts](docs/DATA_AND_API.md)
 - [Confirmed decisions and open choices](docs/DECISIONS.md)
 - [Implementation plan and acceptance scenarios](docs/PLAN.md)
@@ -119,8 +121,14 @@ Open **Settings → Financial plan → Open financial helper**, or use its link 
 
 Snapshots use `collection = calculation_snapshots` in the existing private document table; no new SQL migration is needed. Snapshot saves use revision checks and idempotency keys inside the existing owner transaction. Normalization uses decimal arithmetic and percentages use half-up rounding to two decimals. Paying an occurrence or recording extra repayment does not reduce scheduled baseline debt. Essentials and savings have not been deducted from income after debt.
 
+## Protected funding
+
+Open **Settings → Financial plan → Open protected funding**. Reconcile actual included account balances, create emergency/savings goals, and review the horizon, remaining essential allowances, buffer and future surplus. Then explicitly reserve, release or move cash between goals. Expected income never becomes available cash; savings outside included accounts are not subtracted again.
+
+Cash changes require reconciliation, and the funding plan must be reviewed on the current local date and after obligation/goal changes. Incomplete or stale inputs prevent contributions. Reservation changes are atomic and idempotent and appear in history. Funding and history are included in export/account deletion. See [the funding guide](docs/FUNDING.md) for allowance linking, required savings and concurrency rules. Wishlist readiness and purchase recording remain the next slice.
+
 ## Planned Gemini features
 
 Gemini (`gemini-3.5-flash-lite`) is reserved for the financial helper and guilt-free wishlist. Keep `GEMINI_API_KEY` in `backend/.env`; `GEMINI_MODEL` records the intended model. These settings do not activate any AI feature yet. Transaction entry always uses local rules, even when a key is configured.
 
-The planned design uses Python for DSR/DTI, savings, commitments and purchase-readiness calculations, with Gemini explaining the results and answering questions. The deterministic financial helper is implemented; Gemini explanations and the wishlist remain unimplemented. The unused Gemini adapter is retained as a transport/validation reference and will need feature-specific prompts and schemas.
+The planned design uses Python for DSR/DTI, savings, commitments and purchase-readiness calculations, with Gemini explaining the results and answering questions. The deterministic financial helper and wishlist are implemented; Gemini explanations remain unimplemented. The unused Gemini adapter is retained as a transport/validation reference and will need feature-specific prompts and schemas.
