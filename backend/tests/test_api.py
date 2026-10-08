@@ -3,11 +3,15 @@ import pytest
 from fastapi.testclient import TestClient
 from app.main import create_app
 from app.repositories.documents import LocalRepository
+from app.repositories.encrypted import EncryptedRepository
+from app.infrastructure.document_encryption import DocumentCipher
 
 
-@pytest.fixture
-def client():
-    repo = LocalRepository(':memory:')
+@pytest.fixture(params=['plain', 'encrypted'])
+def client(request):
+    raw = LocalRepository(':memory:')
+    repo = (EncryptedRepository(raw, DocumentCipher({'test': b'x' * 32}, 'test'))
+            if request.param == 'encrypted' else raw)
     with TestClient(create_app(repo, secret='test-secret-that-is-at-least-32-characters')) as c:
         yield c
     repo.close()

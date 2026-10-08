@@ -10,6 +10,10 @@ Python 3.11+ and Flutter are required. Add your Flutter SDK's `bin` directory to
 
 Start the API in one terminal:
 
+First configure a persistent encryption key following [database encryption setup](docs/ENCRYPTION.md).
+Existing databases must be migrated before starting this version. The API requires
+`DOCUMENT_ENCRYPTION_KEY_FILE` in `.env` for both local and Supabase modes.
+
 ```sh
 cd backend
 python3 -m venv .venv
@@ -73,6 +77,7 @@ Bind the development API to `0.0.0.0` when using a physical device. Release buil
 DATABASE_MODE=supabase
 SUPABASE_DB_URL=postgresql://postgres.PROJECT_REF:ENCODED_PASSWORD@POOLER_HOST:5432/postgres
 JWT_SECRET=YOUR_RANDOM_SECRET_AT_LEAST_32_CHARACTERS
+DOCUMENT_ENCRYPTION_KEY_FILE=/PRIVATE/PATH/pocketwise.encryption-keys.json
 ```
 
 Generate the JWT secret using the command in `.env.example`. Install the updated backend requirements and start the API using the local instructions above. Or, from the repository root, run:

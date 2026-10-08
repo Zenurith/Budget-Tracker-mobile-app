@@ -1,5 +1,13 @@
 # Testing and verification
 
+## Dashboard and accessibility validation on 2026-10-06 (macOS)
+
+- Dashboard now includes declared DSR/DTI and current wishlist progress, with missing-data, stale-data and current-versus-historical labels. Active target funding excludes paused items while total reservations retain their funds.
+- Charts provide expandable category, monthly and daily amounts and semantic descriptions. Dashboard and primary-page overflow at 200% phone text was corrected; secondary text contrast was increased.
+- Backend: **131 passed, 7 opt-in live tests skipped**, **94.52% coverage**. Flutter: **81 passed**; analysis clean. Phone/desktop dashboard goldens were updated and visually inspected. Windows goldens were not regenerated.
+- Android debug APK and iOS simulator debug builds succeeded. Builds do not establish runtime journeys, release signing or supported-device compatibility. Screen-reader usability, native restart/secure-storage journeys and performance benchmarks remain unverified.
+- Android emits a future Flutter compatibility warning for the Kotlin Gradle Plugin; migration to built-in Kotlin remains pending.
+
 ## Offline synchronization validation on 2026-10-05 (macOS)
 
 - Backend: **130 passed, 7 opt-in live tests skipped locally**, **94.51% coverage**. Sync tests verify version conflicts, ownership, linked-record guards, replay after deletion, export exclusion, account cleanup and atomic rollback/concurrent retries.
@@ -135,9 +143,9 @@ Flutter tests cover exact conversion of money input to minor units, required sig
 ## Not yet verified
 
 - Live browser interaction: no browser control surface was available during the earlier prototype verification; browser interaction was not rerun during merge cleanup. The preview servers were reachable, and the app was checked using Flutter rendering/widget tests instead.
-- Android/iOS builds, signing, emulator and physical-device behavior.
+- Android/iOS release signing, emulator journeys and physical-device behavior (debug builds passed on 2026-10-06).
 - MongoDB integration: the earlier prototype verification had no Docker or running MongoDB available; backend tests use the persistent local repository.
-- Performance targets, screen-reader usability, large text, offline behavior, production TLS, backups, and all non-functional acceptance criteria.
+- Performance targets, screen-reader usability, full-app large-text coverage, native offline behavior, production TLS, backups, and remaining non-functional acceptance criteria.
 
 A Starlette deprecation warning currently appears for its httpx-based TestClient. It does not fail the suite; review test-client dependency changes on the next dependency update.
 
@@ -164,3 +172,9 @@ For live persistence verification, apply `supabase/migrations/202609300001_docum
 The local verification does not establish live Supabase connectivity or multi-record funding transaction correctness. Supabase Auth and migration of existing user data are outside this database adapter change.
 
 Read-only connection/schema inspection is available via `backend/.venv/bin/python backend/scripts/check_supabase.py` from the repository root. It reads `backend/.env`, prints no credentials or user records, and does not apply migrations. The 2026-09-30 live results above establish connectivity for the configured project; future projects still need their own checks. When updating an already-migrated database, ensure the overall-budget unique index also treats null category IDs as equal (`NULLS NOT DISTINCT`).
+# Encryption validation on 2026-10-08
+
+- `cd backend && .venv/bin/python -m pytest -q`: **243 passed, 8 live tests skipped**. Existing Starlette TestClient deprecation warning remains.
+- Shared API scenarios run against plaintext test storage and AES-256-GCM encrypted storage, including account/export/delete, planning, financial helper, funding, wishlist and sync flows.
+- Dedicated tests verify ciphertext randomization, tamper/owner/collection detection, wrong keys, key rotation, persistent restart, uniqueness, transaction rollback, single-use sessions, migration dry run/retry/rollback and fail-closed startup/error responses.
+- Added an opt-in live Supabase test for encrypted persistence across pools, email/budget uniqueness, owner isolation, rollback and concurrent session consumption. It was not run; live migration and key provisioning remain deployment work. See [ENCRYPTION.md](ENCRYPTION.md).

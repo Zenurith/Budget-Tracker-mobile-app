@@ -15,6 +15,8 @@ import 'profile_editor.dart';
 import 'transaction_filters.dart';
 import 'planning_screen.dart';
 import 'sync_screen.dart';
+import 'dashboard_plan_summary.dart';
+import 'wishlist_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final AppPresenters presenters;
@@ -114,15 +116,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                           const Icon(Icons.spa_rounded, color: green),
                           const SizedBox(width: 10),
                         ],
-                        Text(
-                          wide ? titles[page] : 'pocketwise',
-                          style: const TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: -.5,
+                        Expanded(
+                          child: Text(
+                            wide ? titles[page] : 'pocketwise',
+                            style: const TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: -.5,
+                            ),
                           ),
                         ),
-                        const Spacer(),
                         IconButton(
                           tooltip: 'Refresh',
                           onPressed: c.busy ? null : c.reload,
@@ -267,7 +270,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             style: TextStyle(
               fontSize: 10,
               letterSpacing: 1.7,
-              color: Color(0xFF8A948D),
+              color: mutedInk,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -292,7 +295,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: page == i ? FontWeight.w700 : FontWeight.w500,
-                    color: page == i ? ink : const Color(0xFF758078),
+                    color: page == i ? ink : mutedInk,
                   ),
                 ),
                 onTap: () => setState(() => page = i),
@@ -318,11 +321,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               SizedBox(height: 8),
               Text(
                 'A little awareness goes a long way.',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Color(0xFF7A857E),
-                  height: 1.5,
-                ),
+                style: TextStyle(fontSize: 12, color: mutedInk, height: 1.5),
               ),
             ],
           ),
@@ -331,7 +330,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         const Center(
           child: Text(
             'A little clarity, every day.',
-            style: TextStyle(fontSize: 10, color: Color(0xFF929B94)),
+            style: TextStyle(fontSize: 10, color: mutedInk),
           ),
         ),
       ],
@@ -361,7 +360,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 : page == 2
                 ? 'Give your spending a little direction.'
                 : 'Find the patterns. Build better habits.',
-            style: const TextStyle(color: Color(0xFF7A857E), fontSize: 14),
+            style: const TextStyle(color: mutedInk, fontSize: 14),
           ),
         ],
       );
@@ -503,13 +502,18 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             children: [
               cards[0],
               const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(child: cards[1]),
-                  const SizedBox(width: 14),
-                  Expanded(child: cards[2]),
-                ],
-              ),
+              if (MediaQuery.textScalerOf(context).scale(14) > 20) ...[
+                SizedBox(width: double.infinity, child: cards[1]),
+                const SizedBox(height: 16),
+                SizedBox(width: double.infinity, child: cards[2]),
+              ] else
+                Row(
+                  children: [
+                    Expanded(child: cards[1]),
+                    const SizedBox(width: 14),
+                    Expanded(child: cards[2]),
+                  ],
+                ),
             ],
           );
         },
@@ -549,7 +553,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       Text(
                         '“Spent 15 on lunch yesterday” — just say it naturally.',
                         style: TextStyle(
-                          color: Color(0xFF73806D),
+                          color: mutedInk,
                           fontSize: 12,
                           height: 1.5,
                         ),
@@ -600,7 +604,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               const SizedBox(height: 4),
               const Text(
                 'Your monthly spending plans',
-                style: TextStyle(color: Color(0xFF7A857E)),
+                style: TextStyle(color: mutedInk),
               ),
               const SizedBox(height: 22),
               if (c.budgets.isEmpty)
@@ -636,6 +640,28 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           ],
         ),
       ),
+      const SizedBox(height: 22),
+      panel(
+        DashboardPlanSummary(
+          summary: c.summary,
+          currency: c.currency,
+          stale: c.state.stale || c.state.data.cachedAt != null,
+          openHelper: () => Navigator.push(
+            context,
+            MaterialPageRoute<void>(
+              builder: (_) =>
+                  FinancialHelperScreen(presenter: widget.presenters.helper),
+            ),
+          ),
+          openWishlist: () => Navigator.push(
+            context,
+            MaterialPageRoute<void>(
+              builder: (_) =>
+                  WishlistScreen(presenter: widget.presenters.funding),
+            ),
+          ),
+        ),
+      ),
     ],
   );
   Widget balanceCard() => Container(
@@ -650,11 +676,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       children: [
         const Row(
           children: [
-            Text(
-              'Total balance',
-              style: TextStyle(color: Color(0xFFD2DFD0), fontSize: 13),
+            Expanded(
+              child: Text(
+                'Total balance',
+                style: TextStyle(color: Color(0xFFD2DFD0), fontSize: 13),
+              ),
             ),
-            Spacer(),
             Icon(
               Icons.account_balance_wallet_outlined,
               color: Color(0xFFCEE79E),
@@ -700,10 +727,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               Expanded(
                 child: Text(
                   title,
-                  style: const TextStyle(
-                    color: Color(0xFF7A857E),
-                    fontSize: 13,
-                  ),
+                  style: const TextStyle(color: mutedInk, fontSize: 13),
                 ),
               ),
               Icon(icon, color: color, size: 20),
@@ -722,25 +746,30 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             ),
           ),
           const SizedBox(height: 18),
-          Text(
-            caption,
-            style: const TextStyle(fontSize: 11, color: Color(0xFF8A948D)),
-          ),
+          Text(caption, style: const TextStyle(fontSize: 11, color: mutedInk)),
         ],
       ),
     ),
   );
-  Widget sectionTitle(String title, String action, VoidCallback onTap) => Row(
-    children: [
-      Expanded(
-        child: Text(title, style: Theme.of(context).textTheme.titleLarge),
-      ),
-      TextButton(
-        onPressed: onTap,
-        child: Text(action, style: const TextStyle(fontSize: 12)),
-      ),
-    ],
-  );
+  Widget sectionTitle(String title, String action, VoidCallback onTap) {
+    final heading = Text(title, style: Theme.of(context).textTheme.titleLarge);
+    final button = TextButton(
+      onPressed: onTap,
+      child: Text(action, style: const TextStyle(fontSize: 12)),
+    );
+    return MediaQuery.textScalerOf(context).scale(12) > 17
+        ? Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [heading, button],
+          )
+        : Row(
+            children: [
+              Expanded(child: heading),
+              button,
+            ],
+          );
+  }
+
   Widget empty(String title, String subtitle, IconData icon) => Padding(
     padding: const EdgeInsets.symmetric(vertical: 32),
     child: Center(
@@ -753,7 +782,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           Text(
             subtitle,
             textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 13, color: Color(0xFF7A857E)),
+            style: const TextStyle(fontSize: 13, color: mutedInk),
           ),
         ],
       ),
@@ -761,6 +790,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   );
   Widget entryRow(Entry entry) {
     final category = c.category(entry.categoryId);
+    final largeText = MediaQuery.textScalerOf(context).scale(13) > 19;
     return InkWell(
       borderRadius: BorderRadius.circular(12),
       onTap: () => showEntryEditor(context, widget.presenters, entry: entry),
@@ -784,8 +814,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 children: [
                   Text(
                     entry.note.isEmpty ? category.name : entry.note,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                    maxLines: largeText ? null : 1,
+                    overflow: largeText
+                        ? TextOverflow.visible
+                        : TextOverflow.ellipsis,
                     style: const TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
@@ -794,23 +826,30 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   const SizedBox(height: 5),
                   Text(
                     '${category.name} · ${DateFormat('MMM d').format(entry.date)}',
-                    style: const TextStyle(
-                      fontSize: 11,
-                      color: Color(0xFF879088),
-                    ),
+                    style: const TextStyle(fontSize: 11, color: mutedInk),
                   ),
+                  if (largeText)
+                    Text(
+                      '${entry.type == 'income' ? '+' : '−'}${money(entry.amount, c.currency)}',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: entry.type == 'income' ? green : ink,
+                      ),
+                    ),
                 ],
               ),
             ),
             const SizedBox(width: 10),
-            Text(
-              '${entry.type == 'income' ? '+' : '−'}${money(entry.amount, c.currency)}',
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                color: entry.type == 'income' ? green : ink,
+            if (!largeText)
+              Text(
+                '${entry.type == 'income' ? '+' : '−'}${money(entry.amount, c.currency)}',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: entry.type == 'income' ? green : ink,
+                ),
               ),
-            ),
             if (page == 1)
               PopupMenuButton<String>(
                 tooltip: 'Transaction actions',
@@ -1026,7 +1065,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               ],
               Text(
                 '${visible.length} of ${history.state.total} transactions',
-                style: const TextStyle(fontSize: 12, color: Color(0xFF7A857E)),
+                style: const TextStyle(fontSize: 12, color: mutedInk),
               ),
               const SizedBox(height: 8),
               if (visible.isEmpty &&
@@ -1056,9 +1095,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final ratio = spent / amount;
     final near = ratio * 100 >= (b['alert_threshold'] as int);
     final color = ratio >= 1
-        ? const Color(0xFFC56858)
+        ? const Color(0xFFA84435)
         : near
-        ? const Color(0xFFC99849)
+        ? const Color(0xFF856014)
         : green;
     return Padding(
       padding: const EdgeInsets.only(bottom: 24),
@@ -1133,7 +1172,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             children: [
               Text(
                 '${money(spent, c.currency)} of ${money(amount, c.currency)}',
-                style: const TextStyle(fontSize: 11, color: Color(0xFF7A857E)),
+                style: const TextStyle(fontSize: 11, color: mutedInk),
               ),
               Text(
                 '${money((amount - spent).abs(), c.currency)} ${spent > amount ? 'over budget' : 'left'}',
@@ -1191,7 +1230,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             const SizedBox(height: 10),
             const Text(
               'Track the whole month or make room for a specific category.',
-              style: TextStyle(color: Color(0xFF7A857E)),
+              style: TextStyle(color: mutedInk),
             ),
             const SizedBox(height: 28),
             if (c.budgets.isEmpty)
@@ -1542,7 +1581,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             const SizedBox(height: 12),
             const Text(
               'All amounts use your account currency. Natural entry is processed on the server without an external AI service.',
-              style: TextStyle(color: Color(0xFF7A857E), height: 1.6),
+              style: TextStyle(color: mutedInk, height: 1.6),
             ),
             const SizedBox(height: 20),
             OutlinedButton.icon(
@@ -1611,10 +1650,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       )
                     : const Text(
                         'Default',
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: Color(0xFF929B94),
-                        ),
+                        style: TextStyle(fontSize: 11, color: mutedInk),
                       ),
               ),
             ),
@@ -1644,7 +1680,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           },
           child: const Text(
             'Delete account and data',
-            style: TextStyle(color: Color(0xFFC56858)),
+            style: TextStyle(color: Color(0xFFA84435)),
           ),
         ),
       ),

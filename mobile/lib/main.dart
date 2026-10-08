@@ -7,6 +7,7 @@ import 'views/auth_screen.dart';
 import 'views/home_screen.dart';
 
 const ink = Color(0xFF223E35);
+const mutedInk = Color(0xFF526257);
 const green = Color(0xFF34785B);
 const canvas = Color(0xFFF7F8F3);
 

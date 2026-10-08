@@ -10,6 +10,8 @@ from .domain.auth import AuthService
 from .infrastructure.security import Argon2PasswordHasher, TokenService
 from .repositories.documents import LocalRepository
 from .repositories.supabase import SupabaseRepository
+from .repositories.encrypted import EncryptedRepository
+from .infrastructure.document_encryption import cipher_from_environment
 
 
 def create_app(repository=None, secret=None):
@@ -23,15 +25,20 @@ def create_app(repository=None, secret=None):
 
     @asynccontextmanager
     async def lifespan(app):
+        cipher = None
         if repository is not None:
             app.state.repo = repository
         elif mode == 'supabase':
             url = os.getenv('SUPABASE_DB_URL')
             if not url:
                 raise RuntimeError('Set SUPABASE_DB_URL to your Supabase Postgres connection string.')
+            cipher = cipher_from_environment(required=True)
             app.state.repo = SupabaseRepository(url)
         else:
+            cipher = cipher_from_environment(required=True)
             app.state.repo = LocalRepository(os.getenv('LOCAL_DATABASE_PATH', 'data/pocketwise.sqlite'))
+        if cipher is not None:
+            app.state.repo = EncryptedRepository(app.state.repo, cipher)
         try:
             yield
         finally:

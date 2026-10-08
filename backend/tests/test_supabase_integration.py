@@ -12,6 +12,62 @@ from fastapi.testclient import TestClient
 from app.main import create_app
 
 
+def test_supabase_encrypted_records_across_pools_and_rollback():
+    from app.infrastructure.document_encryption import DocumentCipher
+    from app.repositories.encrypted import EncryptedRepository
+
+    url = os.getenv('TEST_SUPABASE_DB_URL')
+    if not url:
+        pytest.skip('Set TEST_SUPABASE_DB_URL to a migrated disposable Supabase project.')
+    raw = SupabaseRepository(url)
+    second_raw = None
+    owner = str(uuid4())
+    cipher = DocumentCipher({'test': os.urandom(32)}, 'test')
+    first = EncryptedRepository(raw, cipher)
+    try:
+        second_raw = SupabaseRepository(url)
+        second = EncryptedRepository(second_raw, cipher)
+        user = {'id': owner, 'email': owner + '@example.com', 'name': 'Encrypted Name'}
+        first.put('users', user)
+        assert second.get('users', email=user['email']) == user
+        assert 'name' not in raw.get('users', id=owner)
+        with pytest.raises(DuplicateRecordError):
+            second.put('users', dict(user, id=owner + '-duplicate'))
+        doc = {'id': owner + '-tx', 'user_id': owner, 'amount': 1537, 'note': 'Private'}
+        first.put('transactions', doc)
+        assert second.get('transactions', id=doc['id'], user_id=owner) == doc
+        assert second.find('transactions', user_id='other-' + owner) == []
+        assert 'amount' not in raw.get('transactions', id=doc['id'])
+        budget = {'id': owner + '-budget', 'user_id': owner, 'period': '2026-10',
+                  'category_id': None, 'amount': 10000}
+        first.put('budgets', budget)
+        with pytest.raises(DuplicateRecordError):
+            second.put('budgets', dict(budget, id=owner + '-budget2'))
+        with pytest.raises(RuntimeError):
+            with first.atomic(owner) as scoped:
+                scoped.put('transactions', dict(doc, amount=1))
+                scoped.put('funding_events', {'id': owner + '-event', 'user_id': owner, 'amount': 1})
+                raise RuntimeError('rollback')
+        assert second.get('transactions', id=doc['id']) == doc
+        assert second.find('funding_events', user_id=owner) == []
+        token = {'id': owner + '-session', 'user_id': owner, 'secret': 'private'}
+        first.put('sessions', token)
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            futures = [executor.submit(repo.consume, 'sessions', token['id']) for repo in (first, second)]
+            results = [future.result() for future in futures]
+        assert results.count(token) == 1
+        assert results.count(None) == 1
+    finally:
+        try:
+            for collection in ('transactions', 'budgets', 'funding_events', 'sessions'):
+                raw.delete(collection, user_id=owner)
+            raw.delete('users', id=owner)
+        finally:
+            raw.close()
+            if second_raw:
+                second_raw.close()
+
+
 def test_supabase_persistence_isolation_uniqueness_and_atomic_consume():
     url = os.getenv('TEST_SUPABASE_DB_URL')
     if not url:

@@ -197,3 +197,21 @@ def test_export_deletion_report_and_stale_snapshot(client):
     assert client.delete('/auth/me', headers=h).status_code in (200, 204)
     for collection in ('funding', 'funding_events', 'transactions'):
         assert repo.find(collection, user_id=session['user']['id']) == []
+
+
+def test_dashboard_wishlist_progress_keeps_paused_reserves_separate(client):
+    h, _ = signup(client)
+    a, b = baseline(client, h)
+    month = read(client, h)['as_of'][:7]
+    def progress():
+        return client.get('/reports/summary', headers=h, params={'month': month}).json()['review']['funding']
+    initial = progress()
+    assert (initial['active_items'], initial['active_target_total'], initial['active_funded_total']) == (2, 100000, 60000)
+    item(client, h, b, name='Other', status='paused')
+    paused = progress()
+    assert (paused['active_items'], paused['active_target_total'], paused['active_funded_total']) == (1, 50000, 50000)
+    assert paused['current_reserves']['wishlist_reserved'] == 60000
+    assert buy(client, h, a).status_code == 200
+    purchased = progress()
+    assert purchased['active_items'] == purchased['active_target_total'] == purchased['active_funded_total'] == 0
+    assert purchased['current_reserves']['wishlist_reserved'] == 10000

@@ -287,8 +287,11 @@ def monthly_review(month, user, db):
         view = f.view(state, planning.load(user, tx), user)
         purchases = [p for p in state.get('purchases', {}).values() if p['status'] == 'recorded']
         monthly = [p for p in purchases if p['date'].startswith(month)]
+        active = [i for i in state.get('wishlist', {}).values() if i['status'] == 'active']
         return {'current_reserves': {key: view[key] for key in ('emergency_reserved', 'savings_reserved', 'wishlist_reserved')},
                 'usable': view['usable'], 'as_of': view['as_of'],
                 'purchase_count': len(monthly), 'purchase_total': sum(p['amount'] for p in monthly),
                 'refund_total': sum(r['amount'] for p in purchases for r in p['refunds'] if r['date'].startswith(month)),
-                'active_items': sum(i['status'] == 'active' for i in state.get('wishlist', {}).values())}
+                'active_items': len(active),
+                'active_target_total': sum(i['target_cost'] for i in active),
+                'active_funded_total': sum(state['reservations'].get(i['id'], 0) for i in active)}

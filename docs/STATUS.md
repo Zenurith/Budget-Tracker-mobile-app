@@ -1,5 +1,12 @@
 # Implementation status
 
+## Database encryption implementation on 2026-10-08
+
+- AES-256-GCM document encryption is implemented for SQLite and Supabase through a backend repository decorator. Backend calculations and authorized exports receive decrypted data. IDs, ownership, login email, budget period and category lookup fields remain readable for existing queries/indexes.
+- Normal application startup now requires a persistent `DOCUMENT_ENCRYPTION_KEY_FILE`. Keys are never generated implicitly; missing keys, plaintext legacy records and failed authentication do not fall back to plaintext. Existing environments need the setup/migration in [ENCRYPTION.md](ENCRYPTION.md) before restarting this version.
+- Added an offline atomic migration/rotation command, read-only Docker secret mounting and security tests. Local backend suite: **243 passed, 8 opt-in live tests skipped**. Live Supabase encryption and migration have **not** been run; no live records, existing secrets or deployment configuration were changed by this implementation.
+- This does not implement HTTPS deployment, mobile cache encryption, encrypted user exports, KMS integration or secure erasure of historical plaintext backups/WAL.
+
 Updated 2026-10-05. The tracking prototype now uses feature presenters and a layered backend. Name editing and personal-data JSON export are implemented. Financial profiles, debt schedules and recurring commitments are implemented. DSR/DTI calculations, scenarios, personal ratio targets and saved snapshots are implemented. Protected funding and the guilt-free wishlist are implemented.
 
 ## Architecture migration verified
@@ -68,7 +75,7 @@ Recent transaction pages, categories, budgets and report snapshots remain readab
 | Atomic funding | Owner transactions, event ledger, revision checks, retries and live concurrency/rollback verified | Native journey verification |
 | Account completeness | Name editing and personal-data JSON export implemented; password reset deferred by user on 2026-09-30 | Resume account recovery when requested; extend export/deletion when new entities arrive |
 | Offline support | Recent cached records, durable transaction create/edit/delete queue, version conflicts and retry-safe replay implemented | Native restart/secure-storage acceptance; see [OFFLINE.md](OFFLINE.md) |
-| Accessibility/performance | Basic responsive tests only | 200% text/device/screen-reader/performance acceptance checks |
+| Accessibility/performance | Primary pages tested at 200% phone text; chart amount tables/semantics and improved text contrast | Full-app/device/screen-reader/performance acceptance checks |
 | Production readiness | Local development only | HTTPS, encrypted storage, secrets, backups, distributed limits and monitoring |
 
 Monthly review now includes current reserves and recorded wishlist purchase/refund totals. Remaining items include the R2/later features listed in the requirements. Existing transaction totals must not be used as verified cash to simulate a completed wishlist feature.
@@ -76,6 +83,14 @@ Monthly review now includes current reserves and recorded wishlist purchase/refu
 ## Compatibility
 
 Original requirement: Android 8+ and iOS 13+. Generated iOS target: 15.0. Android follows the installed Flutter SDK minimum. This discrepancy is unresolved; the project has not established its native release support matrix.
+
+## Dashboard and accessibility validation on 2026-10-06 (macOS)
+
+- Dashboard now includes declared DSR/DTI and current wishlist progress, with missing-data, stale-data and current-versus-historical labels. Active target funding excludes paused items while total reservations retain their funds.
+- Charts provide expandable category, monthly and daily amounts and semantic descriptions. Dashboard and primary-page overflow at 200% phone text was corrected; secondary text contrast was increased.
+- Backend: **131 passed, 7 opt-in live tests skipped**, **94.52% coverage**. Flutter: **81 passed**; analysis clean. Phone/desktop dashboard goldens were updated and visually inspected. Windows goldens were not regenerated.
+- Android debug APK and iOS simulator debug builds succeeded. Builds do not establish runtime journeys, release signing or supported-device compatibility. Screen-reader usability, native restart/secure-storage journeys and performance benchmarks remain unverified.
+- Android emits a future Flutter compatibility warning for the Kotlin Gradle Plugin; migration to built-in Kotlin remains pending.
 
 ## Offline synchronization validation on 2026-10-05 (macOS)
 
