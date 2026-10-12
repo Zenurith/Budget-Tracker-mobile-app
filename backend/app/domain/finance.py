@@ -10,6 +10,7 @@ from .errors import DomainError, ErrorKind
 from .nlp import parse
 from .ports import DocumentRepository
 from .funding_state import cash_changed
+from .record_history import remember
 
 DEFAULTS = [('food', 'Food', 'expense', 'restaurant', '#E3A25F'), ('transport', 'Transport', 'expense', 'directions_car', '#6D9DC5'), ('shopping', 'Shopping', 'expense', 'shopping_bag', '#AC8FC0'), ('bills', 'Bills', 'expense', 'receipt_long', '#D88679'), ('entertainment', 'Entertainment', 'expense', 'movie', '#7DB7A5'), ('health', 'Health', 'expense', 'favorite', '#D48FA6'), ('other-expense', 'Other expenses', 'expense', 'category', '#9AA6A0'), ('salary', 'Salary', 'income', 'work', '#4D8B70'), ('other-income', 'Other income', 'income', 'payments', '#79A897')]
 CATEGORIES = [dict(id=i, name=n, type=t, icon=ic, color=c, user_id=None) for i, n, t, ic, c in DEFAULTS]
@@ -73,6 +74,7 @@ def add_transaction(data: Transaction, user=None, db: DocumentRepository = None)
     with db.atomic(user['id']) as db:
         check_category(data.category_id, data.type, user, db)
         record = db.put('transactions', dict(dict(asdict(data), date=data.date.isoformat()), id=str(uuid4()), user_id=user['id'], created_at=datetime.now(timezone.utc).isoformat()))
+        remember(None, record, user, db)
         cash_changed(user, db)
         return record
 
@@ -85,6 +87,7 @@ def edit_transaction(id: str, data: Transaction, user=None, db: DocumentReposito
         old = owned('transactions', id, user, db)
         check_category(data.category_id, data.type, user, db)
         record = db.put('transactions', dict(old, **dict(asdict(data), date=data.date.isoformat())))
+        remember(old, record, user, db)
         cash_changed(user, db)
         return record
 
@@ -94,7 +97,8 @@ def delete_transaction(id: str, user=None, db: DocumentRepository = None):
             raise DomainError(ErrorKind.CONFLICT, 'Reverse the wishlist purchase link before editing or deleting linked activity.')
         if owned('transactions', id, user, db).get('commitment_occurrence_id'):
             raise DomainError(ErrorKind.CONFLICT, 'Unlink this payment from its obligation before editing or deleting the expense.')
-        owned('transactions', id, user, db)
+        old = owned('transactions', id, user, db)
+        remember(old, None, user, db)
         db.delete('transactions', id=id, user_id=user['id'])
         cash_changed(user, db)
 
@@ -148,7 +152,11 @@ def summary(month: str=None, user=None, db: DocumentRepository = None):
     }
     from .wishlist import monthly_review
     review['funding'] = monthly_review(month, user, db)
-    return {'month': month, 'income': income, 'expenses': expense, 'balance': sum((d['amount'] * (1 if d['type'] == 'income' else -1) for d in docs if d['date'][:7] <= month)), 'net': income - expense, 'category_breakdown': dict(by_category), 'daily_expenses': dict(sorted(daily.items())), 'trend': trend, 'review': review}
+    from .balances import expected
+    from calendar import monthrange
+    y, m = map(int, month.split('-'))
+    recorded = expected(date(y, m, monthrange(y, m)[1]), user, db)
+    return {'recorded_balance': recorded, 'month': month, 'income': income, 'expenses': expense, 'balance': recorded['balance'] if recorded else sum((d['amount'] * (1 if d['type'] == 'income' else -1) for d in docs if d['date'][:7] <= month)), 'net': income - expense, 'category_breakdown': dict(by_category), 'daily_expenses': dict(sorted(daily.items())), 'trend': trend, 'review': review}
 
 def parse_entry(data: ParseRequest, user=None, db: DocumentRepository = None):
     return parse(data.text, data.reference_date, categories(user, db))

@@ -100,7 +100,9 @@ The Supabase Table Editor may initially show the empty `public` schema. Select *
 
 Transactions support combined search, type/category, date-range and amount filters with 50-record pages. Use **Date & amount** for ranges spanning multiple months, **Load more transactions** for the next page, or **Clear filters** to return to the selected month. Settings lets you choose icons and colors for custom categories. Reports includes a monthly spending/budget review and debt ratios from declared schedules, with incomplete-period and recording-coverage labels.
 
-In **Settings**, use **Edit profile** to update your name or **Export my data** to save `pocketwise-data.json`. The export includes your profile, all transaction history, budgets and category definitions; recorded money amounts are integer minor units in your account currency. Financial calculation snapshots additionally preserve normalized fractional minor-unit amounts and percentages as decimal strings. Password hashes and authentication sessions are excluded. Browsers start a download; Android/iOS use a file-save dialog. Native export behavior still needs device verification. Password reset remains planned.
+In **Settings**, use **Edit profile** to update your name or **Export my data** to save `pocketwise-data.json`. The export includes your profile, all transaction history, budgets and category definitions; recorded money amounts are integer minor units in your account currency. Financial calculation snapshots additionally preserve normalized fractional minor-unit amounts and percentages as decimal strings. Password hashes and authentication sessions are excluded. Browsers start a download; Android/iOS use a file-save dialog. Native export behavior still needs device verification. Password recovery is available on sign-in after configuring SMTP; see [records and recovery setup](docs/RECORDS_AND_RECOVERY.md).
+
+Settings also includes **Opening balances & reconciliation**, **Import CSV transactions** and **Undo changes & history**. See [the feature guide](docs/RECORDS_AND_RECOVERY.md) for the supported CSV format and recovery-email setup.
 
 ## Project guide
 

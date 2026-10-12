@@ -1,5 +1,5 @@
 import hashlib
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from uuid import uuid4
 from .commands import Login, Refresh, Register, UpdateProfile
 from .ports import DocumentRepository, DuplicateRecordError, PasswordHasher, TokenProvider
@@ -14,18 +14,28 @@ class AuthService:
     def user_for_token(self, value, db: DocumentRepository):
         uid = self.tokens.decode(value, 'access')['sub']
         user = db.get('users', id=uid)
-        if not user:
-            raise DomainError(ErrorKind.UNAUTHORIZED, 'Account not found.')
+        if not user or not db.get('access_sessions', id=hashlib.sha256(value.encode()).hexdigest(), user_id=uid):
+            raise DomainError(ErrorKind.UNAUTHORIZED, 'Please sign in again.')
         return user
 
     def public(self, user):
         return {k: user[k] for k in ('id', 'name', 'email', 'currency', 'created_at') if k in user}
 
     def session(self, user, db: DocumentRepository):
-        refresh_token = self.tokens.token(user['id'], 'refresh', 30 * 86400)
-        digest = hashlib.sha256(refresh_token.encode()).hexdigest()
-        db.put('sessions', {'id': digest, 'user_id': user['id']})
-        return {'access_token': self.tokens.token(user['id'], 'access', 900), 'refresh_token': refresh_token, 'token_type': 'bearer', 'user': self.public(user)}
+        with db.atomic(user['id']) as tx:
+            if not tx.get('users', id=user['id']):
+                raise DomainError(ErrorKind.UNAUTHORIZED, 'Please sign in again.')
+            now = datetime.now(timezone.utc)
+            for old in tx.find('access_sessions', user_id=user['id']):
+                if old['expires_at'] < now.isoformat():
+                    tx.delete('access_sessions', id=old['id'])
+            refresh_token = self.tokens.token(user['id'], 'refresh', 30 * 86400)
+            access_token = self.tokens.token(user['id'], 'access', 900)
+            digest = hashlib.sha256(refresh_token.encode()).hexdigest()
+            access_id = hashlib.sha256(access_token.encode()).hexdigest()
+            tx.put('access_sessions', {'id': access_id, 'user_id': user['id'], 'expires_at': (now + timedelta(seconds=900)).isoformat()})
+            tx.put('sessions', {'id': digest, 'user_id': user['id'], 'access_id': access_id})
+            return {'access_token': access_token, 'refresh_token': refresh_token, 'token_type': 'bearer', 'user': self.public(user)}
 
     def register(self, data: Register, db: DocumentRepository = None):
         email = str(data.email).lower()
@@ -40,21 +50,32 @@ class AuthService:
 
     def login(self, data: Login, db: DocumentRepository = None):
         user = db.get('users', email=str(data.email).lower())
-        valid = self.passwords.verify(data.password, user['password_hash'] if user else self.passwords.dummy_hash)
-        if not user or not valid:
+        if not user:
+            self.passwords.verify(data.password, self.passwords.dummy_hash)
             raise DomainError(ErrorKind.UNAUTHORIZED, 'Email or password is incorrect.')
-        return self.session(user, db)
+        with db.atomic(user['id']) as tx:
+            user = tx.get('users', id=user['id'])
+            valid = self.passwords.verify(data.password, user['password_hash'] if user else self.passwords.dummy_hash)
+            if not user or not valid:
+                raise DomainError(ErrorKind.UNAUTHORIZED, 'Email or password is incorrect.')
+            return self.session(user, tx)
 
     def refresh(self, data: Refresh, db: DocumentRepository = None):
         payload = self.tokens.decode(data.refresh_token, 'refresh')
-        stored = db.consume('sessions', hashlib.sha256(data.refresh_token.encode()).hexdigest())
-        user = db.get('users', id=payload['sub'])
-        if not stored or not user or stored['user_id'] != user['id']:
-            raise DomainError(ErrorKind.UNAUTHORIZED, 'Please sign in again.')
-        return self.session(user, db)
+        with db.atomic(payload['sub']) as tx:
+            stored = tx.consume('sessions', hashlib.sha256(data.refresh_token.encode()).hexdigest())
+            user = tx.get('users', id=payload['sub'])
+            if not stored or not user or stored['user_id'] != user['id']:
+                raise DomainError(ErrorKind.UNAUTHORIZED, 'Please sign in again.')
+            return self.session(user, tx)
 
     def logout(self, data: Refresh, db: DocumentRepository = None):
-        db.delete('sessions', id=hashlib.sha256(data.refresh_token.encode()).hexdigest())
+        record = db.get('sessions', id=hashlib.sha256(data.refresh_token.encode()).hexdigest())
+        if record:
+            with db.atomic(record['user_id']) as tx:
+                tx.delete('sessions', id=record['id'])
+                if record.get('access_id'):
+                    tx.delete('access_sessions', id=record['access_id'])
         return {'ok': True}
 
     def me(self, user=None):
@@ -64,9 +85,13 @@ class AuthService:
         name = data.name.strip()
         if not name or len(name) > 80:
             raise DomainError(ErrorKind.INVALID_INPUT, 'Enter a name between 1 and 80 characters.')
-        updated = dict(user, name=name)
-        db.put('users', updated)
-        return self.public(updated)
+        with db.atomic(user['id']) as tx:
+            current = tx.get('users', id=user['id'])
+            if not current:
+                raise DomainError(ErrorKind.UNAUTHORIZED, 'Please sign in again.')
+            updated = dict(current, name=name)
+            tx.put('users', updated)
+            return self.public(updated)
 
     def export_data(self, user, db: DocumentRepository):
         return {
@@ -83,11 +108,11 @@ class AuthService:
             'planning': [{k: v for k, v in p.items() if k != 'operations'}
                          for p in db.find('planning', user_id=user['id'])],
             **{collection: db.find(collection, user_id=user['id'])
-               for collection in ('transactions', 'budgets')},
+               for collection in ('transactions', 'budgets', 'opening_balances', 'balance_history', 'transaction_history', 'csv_imports')},
         }
 
     def delete_account(self, user=None, db: DocumentRepository = None):
         with db.atomic(user['id']) as tx:
-            for collection in ('transactions', 'budgets', 'categories', 'sessions', 'planning', 'calculation_snapshots', 'funding', 'funding_events', 'transaction_operations'):
+            for collection in ('transactions', 'budgets', 'categories', 'sessions', 'planning', 'calculation_snapshots', 'funding', 'funding_events', 'transaction_operations', 'access_sessions', 'password_resets', 'opening_balances', 'balance_history', 'transaction_history', 'csv_imports'):
                 tx.delete(collection, user_id=user['id'])
             tx.delete('users', id=user['id'])

@@ -102,7 +102,7 @@ def exercise_sync_atomicity(first, second, monkeypatch):
         assert sum(r is not None for r in results) == 1
         assert funding_state.load(user, second)['cash_revision'] == before['cash_revision'] + 2
     finally:
-        for collection in ['transactions', 'transaction_operations', 'funding']:
+        for collection in ['transactions', 'transaction_operations', 'funding', 'transaction_history']:
             first.delete(collection, user_id=owner)
         first.delete('users', id=owner)
 

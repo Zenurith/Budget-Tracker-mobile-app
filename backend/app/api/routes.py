@@ -13,9 +13,11 @@ from .wishlist_routes import build_wishlist_router
 from .funding_routes import build_funding_router
 from .schemas import TransactionOperation
 from ..domain import transaction_sync
+from .record_routes import build_record_router
+from .recovery_routes import build_recovery_router
 
 
-def build_router(auth, mode):
+def build_router(auth, mode, mailer):
     router = APIRouter()
     bearer = HTTPBearer(auto_error=False)
     limiter = AuthRateLimiter()
@@ -228,5 +230,7 @@ def build_router(auth, mode):
         return seed_demo(data.currency, db, auth)
 
     router.include_router(build_funding_router(current, repo))
+    router.include_router(build_record_router(current, repo))
+    router.include_router(build_recovery_router(auth, mailer, repo, auth_limit))
     router.include_router(build_wishlist_router(current, repo))
     return router

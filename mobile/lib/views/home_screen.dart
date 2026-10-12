@@ -17,6 +17,8 @@ import 'planning_screen.dart';
 import 'sync_screen.dart';
 import 'dashboard_plan_summary.dart';
 import 'wishlist_screen.dart';
+import 'records_screen.dart';
+import 'funding_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final AppPresenters presenters;
@@ -703,9 +705,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           ),
         ),
         const SizedBox(height: 18),
-        const Text(
-          'Across your recorded transactions',
-          style: TextStyle(color: Color(0xFFB7C9B7), fontSize: 11),
+        Text(
+          c.summary['recorded_balance'] == null
+              ? 'Across your recorded transactions'
+              : 'Opening balances plus recorded activity; not reconciled cash',
+          style: const TextStyle(color: Color(0xFFB7C9B7), fontSize: 11),
         ),
       ],
     ),
@@ -1561,6 +1565,40 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               icon: const Icon(Icons.event_note),
               label: const Text('Financial plan'),
             ),
+            if (widget.presenters.records != null) ...[
+              const SizedBox(height: 12),
+              for (final (index, label, icon) in [
+                (
+                  0,
+                  'Opening balances & reconciliation',
+                  Icons.account_balance_wallet_outlined,
+                ),
+                (1, 'Import CSV transactions', Icons.upload_file),
+                (2, 'Undo changes & history', Icons.history),
+              ])
+                TextButton.icon(
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute<void>(
+                      builder: (_) => RecordsScreen(
+                        presenter: widget.presenters.records!,
+                        currency: c.currency,
+                        initialTab: index,
+                        reconcile: () => Navigator.push(
+                          context,
+                          MaterialPageRoute<void>(
+                            builder: (_) => FundingScreen(
+                              presenter: widget.presenters.funding,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  icon: Icon(icon),
+                  label: Text(label),
+                ),
+            ],
             const SizedBox(height: 12),
             Text('Account currency: ${c.currency}'),
             if (widget.presenters.sync != null)

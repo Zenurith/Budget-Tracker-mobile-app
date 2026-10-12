@@ -1,5 +1,13 @@
 # Testing and verification
 
+## Records and recovery validation on 2026-10-12 (macOS)
+
+- Backend full local suite: **270 passed**, existing live tests skipped. New coverage runs against plain and encrypted storage: opening arithmetic/revisions/history, reconciliation differences, CSV validation/selection/duplicates/retries, atomic rollback, undo safeguards, recovery expiry/single-use/concurrent reset and session revocation.
+- Flutter: **87 passed**; analysis clean. Added plain-Dart presenter coverage and widget tests for import confirmation/duplicate deselection and 200% phone text. Existing dashboard goldens passed without updates. Web release build and Wasm compatibility dry run succeeded.
+- Added an opt-in encrypted Supabase records/recovery journey. All nine live tests remain unrun in this slice. Updated integration cleanup for new owner-scoped history/session records.
+- SMTP adapter tested with an injected transport; key recovery behavior tested with a fake mailbox. Docker daemon is unavailable, so Mailpit and actual SMTP delivery were not exercised. Native file selection and complete device recovery journeys remain unverified.
+- Setup and behavior: [RECORDS_AND_RECOVERY.md](RECORDS_AND_RECOVERY.md).
+
 ## Dashboard and accessibility validation on 2026-10-06 (macOS)
 
 - Dashboard now includes declared DSR/DTI and current wishlist progress, with missing-data, stale-data and current-versus-historical labels. Active target funding excludes paused items while total reservations retain their funds.

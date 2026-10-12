@@ -12,9 +12,10 @@ from .repositories.documents import LocalRepository
 from .repositories.supabase import SupabaseRepository
 from .repositories.encrypted import EncryptedRepository
 from .infrastructure.document_encryption import cipher_from_environment
+from .infrastructure.recovery_mail import SMTPResetMailer
 
 
-def create_app(repository=None, secret=None):
+def create_app(repository=None, secret=None, mailer=None):
     mode = os.getenv('DATABASE_MODE', 'local')
     if mode not in ('local', 'supabase'):
         raise RuntimeError('DATABASE_MODE must be local or supabase.')
@@ -50,7 +51,7 @@ def create_app(repository=None, secret=None):
 
     install_error_handlers(app)
 
-    app.include_router(build_router(AuthService(TokenService(jwt_secret), Argon2PasswordHasher()), mode))
+    app.include_router(build_router(AuthService(TokenService(jwt_secret), Argon2PasswordHasher()), mode, mailer or SMTPResetMailer()))
     return app
 
 

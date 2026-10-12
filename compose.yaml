@@ -10,6 +10,13 @@ services:
       SUPABASE_DB_URL: ${SUPABASE_DB_URL:?Set your Supabase Postgres connection string}
       JWT_SECRET: ${JWT_SECRET:?Set a random JWT_SECRET of at least 32 characters}
       DOCUMENT_ENCRYPTION_KEY_FILE: /run/secrets/document_keys
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURITY: ${SMTP_SECURITY:-starttls}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-Pocketwise <noreply@localhost>}
+      PASSWORD_RESET_URL: ${PASSWORD_RESET_URL:-}
       CORS_ORIGINS: http://localhost:5173,http://127.0.0.1:5173
     secrets:
       - document_keys

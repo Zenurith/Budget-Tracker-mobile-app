@@ -172,10 +172,13 @@ def save_snapshot(data: CashSnapshot, user, db):
     with db.atomic(user['id']) as tx:
         state, plan = storage.load(user, tx), planning.load(user, tx)
         revisions(state, plan, data.expected_revision, data.expected_planning_revision)
+        previous_snapshot = state['snapshot']
         state['snapshot'] = {'currency': data.currency,
             'accounts': [dict(name=a.name.strip(), amount=a.amount) for a in data.accounts],
             'liquid_total': sum(a.amount for a in data.accounts), 'as_of': data.as_of.astimezone(timezone.utc).isoformat(),
             'reviewed_at': now().isoformat(), 'cash_revision': state['cash_revision']}
+        from .balances import record_reconciliation
+        record_reconciliation(state['snapshot'], previous_snapshot, plan, user, tx)
         storage.persist(state, tx)
         return view(state, plan, user)
 

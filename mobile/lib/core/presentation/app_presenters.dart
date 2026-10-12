@@ -16,6 +16,10 @@ import '../../features/budgets/presenter/budget_presenter.dart';
 import '../../features/categories/presenter/category_presenter.dart';
 import '../../features/sync/model/sync_repository.dart';
 import '../../features/sync/presenter/sync_presenter.dart';
+import '../../features/records/model/records_repository.dart';
+import '../../features/records/presenter/records_presenter.dart';
+import '../../features/recovery/model/recovery_repository.dart';
+import '../../features/recovery/presenter/recovery_presenter.dart';
 
 /// Presentation composition: relays typed effects, never exposes data adapters.
 class AppPresenters {
@@ -29,6 +33,8 @@ class AppPresenters {
   final BudgetPresenter budgets;
   final CategoryPresenter categories;
   final SyncPresenter? sync;
+  final RecordsPresenter? records;
+  final RecoveryPresenter? recovery;
   final List<StreamSubscription<Object?>> _subscriptions = [];
   Account? _account;
   final ExportDestination? exportDestination;
@@ -43,8 +49,17 @@ class AppPresenters {
     required FundingRepository fundingRepository,
     this.exportDestination,
     SyncRepository? syncRepository,
+    RecordsRepository? recordsRepository,
+    CSVSource? csvSource,
+    RecoveryRepository? recoveryRepository,
     DateTime Function()? now,
-  }) : sync = syncRepository == null ? null : SyncPresenter(syncRepository),
+  }) : records = recordsRepository == null || csvSource == null
+           ? null
+           : RecordsPresenter(recordsRepository, csvSource),
+       recovery = recoveryRepository == null
+           ? null
+           : RecoveryPresenter(recoveryRepository),
+       sync = syncRepository == null ? null : SyncPresenter(syncRepository),
        auth = AuthPresenter(authRepository),
        overview = OverviewPresenter(overviewRepository, now: now),
        transactions = TransactionPresenter(transactionRepository),
@@ -61,6 +76,7 @@ class AppPresenters {
         _account = state.account;
         unawaited(overview.setAccount(state.account));
         if (changedOwner) {
+          records?.setAccount(state.account);
           if (state.account != null) unawaited(sync?.synchronize());
           helper.setAccount(state.account);
           funding.setAccount(state.account);
@@ -117,6 +133,7 @@ class AppPresenters {
       budgets.effects,
       categories.effects,
       planning.effects,
+      if (records != null) records!.effects,
     ]) {
       _subscriptions.add(
         effects.listen((effect) {
@@ -148,5 +165,7 @@ class AppPresenters {
     budgets.dispose();
     categories.dispose();
     sync?.dispose();
+    records?.dispose();
+    recovery?.dispose();
   }
 }

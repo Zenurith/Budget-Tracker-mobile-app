@@ -1,0 +1,10 @@
+# Local development inbox only. It captures messages and never delivers them.
+# Run: docker compose -f compose.mail.yaml up -d
+services:
+  mailpit:
+    image: axllent/mailpit:latest
+    ports:
+      - "127.0.0.1:1025:1025"
+      - "127.0.0.1:8025:8025"
+    environment:
+      MP_MAX_MESSAGES: 100

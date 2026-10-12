@@ -88,6 +88,15 @@ Existing FR-1–FR-29 identifiers are retained for traceability; priorities belo
 | FR-46 | Allow machine-readable export of personal data and deletion; capture consent before sending data to an external AI provider if one is introduced. | R1 |
 | FR-47 | Future payoff planner may compare repayment strategies using explicit rates, fees and interest assumptions. It must remain separate from simple DSR/DTI calculations. | R2 |
 
+### Additional scope confirmed 2026-10-12
+
+- Opening balances with named components and a budget-wide starting date; preserve cash reconciliation history and comparisons without recording opening amounts as income.
+- CSV transaction import with validation, a preview, duplicate candidates, explicit selection and retry-safe atomic commits.
+- Resume account recovery with configurable SMTP and a local test inbox; use single-use expiring codes and revoke sessions after reset.
+- Undo ordinary transaction additions, edits and deletions within 30 days, preserving version checks and linked-payment/purchase safeguards.
+
+Implementation details and acceptance limits: [Records and recovery](../docs/RECORDS_AND_RECOVERY.md).
+
 ## 5. Non-functional acceptance requirements
 
 | Area | R1 acceptance target |

@@ -1,5 +1,13 @@
 # Implementation status
 
+## Records and account recovery on 2026-10-12
+
+- Settings now includes named opening balances, immutable reconciliation observations, CSV preview/import with duplicate review, and 30-day undo for ordinary transaction changes. Opening values affect recorded balances without becoming income or spendable cash; transactions still share one budget-wide ledger.
+- Sign-in includes password recovery using configurable SMTP, expiring single-use codes and revocation of access/refresh sessions. A local Mailpit Compose file is available. The previous password-recovery deferral is superseded by the user's request on 2026-10-12.
+- New document collections use the existing encrypted repository and owner transactions. Export/deletion includes opening balances, histories and import receipts; reset/session secrets remain excluded from export. No schema migration or live-data changes were made.
+- Validation: **270 backend tests passed**; live Supabase tests were not run. **87 Flutter tests passed**, including unchanged dashboard goldens; analysis is clean. Web release build and Wasm compatibility dry run succeeded. Docker is not running, so the local inbox and real SMTP delivery could not be exercised. Native picker/recovery journeys remain unverified.
+- See [RECORDS_AND_RECOVERY.md](RECORDS_AND_RECOVERY.md) for CSV format, balance scope, undo limits and SMTP setup.
+
 ## Database encryption implementation on 2026-10-08
 
 - AES-256-GCM document encryption is implemented for SQLite and Supabase through a backend repository decorator. Backend calculations and authorized exports receive decrypted data. IDs, ownership, login email, budget period and category lookup fields remain readable for existing queries/indexes.
@@ -73,7 +81,7 @@ Recent transaction pages, categories, budgets and report snapshots remain readab
 | Cash/obligation model | Reconciled liquid snapshot, horizon, linked allowances, partial-payment obligations and cash invalidation implemented | Preserve purchase reconciliation guards |
 | Savings/emergency reserves | Inside/outside goals, dated required reserves and reserve/release/reallocation implemented | Recurring savings automation |
 | Atomic funding | Owner transactions, event ledger, revision checks, retries and live concurrency/rollback verified | Native journey verification |
-| Account completeness | Name editing and personal-data JSON export implemented; password reset deferred by user on 2026-09-30 | Resume account recovery when requested; extend export/deletion when new entities arrive |
+| Account completeness | Name editing, expanded export/deletion and SMTP password recovery implemented | Configure and verify email delivery and native recovery journeys |
 | Offline support | Recent cached records, durable transaction create/edit/delete queue, version conflicts and retry-safe replay implemented | Native restart/secure-storage acceptance; see [OFFLINE.md](OFFLINE.md) |
 | Accessibility/performance | Primary pages tested at 200% phone text; chart amount tables/semantics and improved text contrast | Full-app/device/screen-reader/performance acceptance checks |
 | Production readiness | Local development only | HTTPS, encrypted storage, secrets, backups, distributed limits and monitoring |

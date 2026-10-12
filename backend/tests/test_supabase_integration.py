@@ -12,6 +12,47 @@ from fastapi.testclient import TestClient
 from app.main import create_app
 
 
+def test_supabase_records_and_recovery_with_encrypted_storage():
+    from app.infrastructure.document_encryption import DocumentCipher
+    from app.repositories.encrypted import EncryptedRepository
+    from test_records import opening, CSV
+    from test_recovery import Mailbox
+
+    url = os.getenv('TEST_SUPABASE_DB_URL')
+    if not url:
+        pytest.skip('Set TEST_SUPABASE_DB_URL to a migrated disposable Supabase project.')
+    raw = SupabaseRepository(url)
+    cipher = DocumentCipher({'test': os.urandom(32)}, 'test')
+    repo = EncryptedRepository(raw, cipher)
+    mailbox, owner = Mailbox(), None
+    email = str(uuid4()) + '@example.com'
+    try:
+        with TestClient(create_app(repo, secret='x' * 32, mailer=mailbox)) as client:
+            session = client.post('/auth/register', json={'email': email, 'name': 'Test', 'password': 'password123', 'currency': 'EUR'}).json()
+            owner = session['user']['id']
+            headers = {'Authorization': 'Bearer ' + session['access_token']}
+            assert client.put('/balances/opening', headers=headers, json=opening()).status_code == 200
+            data = {'contents': CSV, 'operation_id': str(uuid4()), 'rows': [1], 'allow_duplicates': []}
+            first = client.post('/imports/csv/commit', headers=headers, json=data)
+            assert first.status_code == 200
+            assert client.post('/imports/csv/commit', headers=headers, json=data).json() == first.json()
+            change = client.get('/transaction-history', headers=headers).json()['items'][0]
+            assert client.post(f"/transaction-history/{change['id']}/undo", headers=headers).status_code == 200
+            assert client.get('/transactions', headers=headers).json()['total'] == 0
+            assert client.post('/auth/password/request', json={'email': email}).status_code == 202
+            assert len(mailbox.messages) == 1
+            assert client.post('/auth/password/reset', json={'token': mailbox.messages[0][1], 'password': 'new-password123'}).status_code == 200
+            assert client.get('/auth/me', headers=headers).status_code == 401
+    finally:
+        try:
+            if owner:
+                for collection in ('opening_balances', 'balance_history', 'csv_imports', 'transactions', 'transaction_history', 'funding', 'sessions', 'access_sessions', 'password_resets'):
+                    raw.delete(collection, user_id=owner)
+                raw.delete('users', id=owner)
+        finally:
+            raw.close()
+
+
 def test_supabase_encrypted_records_across_pools_and_rollback():
     from app.infrastructure.document_encryption import DocumentCipher
     from app.repositories.encrypted import EncryptedRepository
@@ -187,7 +228,7 @@ def test_supabase_api_profile_export_and_account_isolation(monkeypatch):
             for email in emails:
                 user = repo.get('users', email=email)
                 if user:
-                    for collection in ('transactions', 'budgets', 'categories', 'sessions', 'funding', 'funding_events'):
+                    for collection in ('transactions', 'budgets', 'categories', 'sessions', 'funding', 'funding_events', 'access_sessions', 'password_resets', 'balance_history', 'transaction_history'):
                         repo.delete(collection, user_id=user['id'])
                     repo.delete('users', id=user['id'])
         finally:
@@ -250,7 +291,7 @@ def test_supabase_planning_atomic_rollback_and_concurrent_payments(monkeypatch):
         assert len(second.find('transactions', user_id=owner)) == 2
     finally:
         try:
-            for collection in ('planning', 'transactions', 'funding', 'funding_events'):
+            for collection in ('planning', 'transactions', 'funding', 'funding_events', 'balance_history', 'transaction_history'):
                 first.delete(collection, user_id=owner)
             first.delete('users', id=owner)
         finally:
@@ -404,7 +445,7 @@ def test_supabase_funding_atomic_ledger_retries_races_and_cash_changes(monkeypat
     finally:
         try:
             for account in (user, other):
-                for collection in ('planning', 'transactions', 'funding', 'funding_events'):
+                for collection in ('planning', 'transactions', 'funding', 'funding_events', 'balance_history', 'transaction_history'):
                     first.delete(collection, user_id=account['id'])
                 first.delete('users', id=account['id'])
         finally:

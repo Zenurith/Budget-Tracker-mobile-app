@@ -4,10 +4,13 @@ import '../features/auth/presenter/auth_presenter.dart';
 import '../core/model/contracts.dart';
 import '../core/view/presenter_builder.dart';
 import '../main.dart';
+import '../features/recovery/presenter/recovery_presenter.dart';
+import 'recovery_screen.dart';
 
 class AuthScreen extends StatefulWidget {
   final AuthPresenter presenter;
-  const AuthScreen({super.key, required this.presenter});
+  final RecoveryPresenter? recovery;
+  const AuthScreen({super.key, required this.presenter, this.recovery});
   @override
   State<AuthScreen> createState() => _AuthScreenState();
 }
@@ -19,6 +22,29 @@ class _AuthScreenState extends State<AuthScreen> {
       password = TextEditingController();
   bool register = false, obscure = true;
   String? currency;
+  @override
+  void initState() {
+    super.initState();
+    if (widget.recovery != null &&
+        Uri.base.fragment.startsWith('reset_token=')) {
+      final token =
+          Uri.splitQueryString(Uri.base.fragment)['reset_token'] ?? '';
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) openRecovery(token);
+      });
+    }
+  }
+
+  void openRecovery([String token = '']) {
+    Navigator.push(
+      context,
+      MaterialPageRoute<void>(
+        builder: (_) =>
+            RecoveryScreen(presenter: widget.recovery!, initialToken: token),
+      ),
+    );
+  }
+
   bool get loading => widget.presenter.state.busy;
   String? get error => widget.presenter.state.error;
   @override
@@ -217,6 +243,11 @@ class _AuthScreenState extends State<AuthScreen> {
                               ),
                             ),
                             const SizedBox(height: 8),
+                            if (!register && widget.recovery != null)
+                              TextButton(
+                                onPressed: loading ? null : openRecovery,
+                                child: const Text('Forgot password?'),
+                              ),
                             TextButton(
                               onPressed: loading
                                   ? null

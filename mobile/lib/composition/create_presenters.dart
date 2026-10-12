@@ -7,6 +7,8 @@ import '../data/file_export_destination.dart';
 import '../data/api_planning_repository.dart';
 import '../data/offline_repository.dart';
 import '../data/secure_offline_persistence.dart';
+import '../data/api_records_repository.dart';
+import '../data/api_recovery_repository.dart';
 
 AppPresenters createPresenters() {
   final api = Api();
@@ -15,6 +17,9 @@ AppPresenters createPresenters() {
   final finance = ApiFinanceRepository(api, offline: offline);
   return AppPresenters(
     authRepository: ApiAuthRepository(api, offline: offline),
+    recordsRepository: ApiRecordsRepository(api),
+    csvSource: FileCSVSource(),
+    recoveryRepository: ApiRecoveryRepository(api),
     syncRepository: offline,
     overviewRepository: finance,
     transactionRepository: finance,

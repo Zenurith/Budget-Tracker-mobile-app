@@ -93,7 +93,7 @@ def exercise_atomicity(first, second, monkeypatch):
         assert len(second.find('transactions', user_id=owner)) == 2
         assert wishlist.read(user, second)['liquid_total'] == 10000
     finally:
-        for collection in ('transactions', 'planning', 'funding', 'funding_events'):
+        for collection in ('transactions', 'planning', 'funding', 'funding_events', 'balance_history', 'transaction_history'):
             first.delete(collection, user_id=owner)
         first.delete('users', id=owner)
 

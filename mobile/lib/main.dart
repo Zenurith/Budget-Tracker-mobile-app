@@ -113,7 +113,10 @@ class _PocketwiseAppState extends State<PocketwiseApp> {
           );
         }
         return widget.presenters.auth.state.account == null
-            ? AuthScreen(presenter: widget.presenters.auth)
+            ? AuthScreen(
+                presenter: widget.presenters.auth,
+                recovery: widget.presenters.recovery,
+              )
             : HomeScreen(presenters: widget.presenters);
       },
     ),

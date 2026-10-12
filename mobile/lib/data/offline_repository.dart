@@ -106,9 +106,12 @@ class OfflineRepository implements SyncRepository {
     if (hasPending &&
         (path.startsWith('/funding') ||
             path.startsWith('/wishlist') ||
-            path.startsWith('/goals'))) {
+            path.startsWith('/goals') ||
+            path.startsWith('/balances') ||
+            path.startsWith('/imports') ||
+            path.startsWith('/transaction-history'))) {
       throw ApiException(
-        'Sync or resolve pending transactions before reviewing or changing protected funding.',
+        'Sync or resolve pending transactions before reviewing balances, importing, undoing changes or changing protected funding.',
       );
     }
   }
