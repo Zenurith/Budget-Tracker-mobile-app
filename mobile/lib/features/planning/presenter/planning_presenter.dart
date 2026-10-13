@@ -120,11 +120,11 @@ class PlanningPresenter extends Presenter<PlanningState> {
       'expected_revision': revision,
       'currency': _account!.currency,
     }, id: id),
-    reportsChanged: kind == 'debts',
+    reportsChanged: true,
   );
   Future<bool> deleteSchedule(String kind, String id) => _save(
     (revision) => _repository.deleteSchedule(kind, id, revision),
-    reportsChanged: kind == 'debts',
+    reportsChanged: true,
   );
 
   Future<bool> pay(String occurrenceId, Json draft) async {

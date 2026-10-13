@@ -19,6 +19,9 @@ import 'dashboard_plan_summary.dart';
 import 'wishlist_screen.dart';
 import 'records_screen.dart';
 import 'funding_screen.dart';
+import 'dashboard_cash_card.dart';
+import 'setup_screen.dart';
+import 'notification_settings_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final AppPresenters presenters;
@@ -42,6 +45,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       widget.presenters.sync?.synchronize();
+      c.reload();
     }
   }
 
@@ -425,6 +429,32 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Widget dashboard() => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
+      panel(
+        DashboardCashCard(
+          presenter: c,
+          sync: widget.presenters.sync,
+          openFunding: () async {
+            await Navigator.push(
+              context,
+              MaterialPageRoute<void>(
+                builder: (_) =>
+                    FundingScreen(presenter: widget.presenters.funding),
+              ),
+            );
+            if (mounted) await c.reload();
+          },
+          openSetup: () => Navigator.push(
+            context,
+            MaterialPageRoute<void>(
+              builder: (_) => SetupScreen(
+                presenters: widget.presenters,
+                editBudget: (month) => budgetEditor(null, month),
+              ),
+            ),
+          ),
+        ),
+      ),
+      const SizedBox(height: 22),
       PresenterBuilder(
         presenter: widget.presenters.planning,
         builder: (context, state) {
@@ -1199,11 +1229,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
   }
 
-  void openPlanning() => Navigator.of(context).push(
-    MaterialPageRoute<void>(
-      builder: (_) => PlanningScreen(presenters: widget.presenters),
-    ),
-  );
+  Future<void> openPlanning() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => PlanningScreen(presenters: widget.presenters),
+      ),
+    );
+    if (mounted) await c.reload();
+  }
 
   Widget budgets() => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1250,7 +1283,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       ),
     ],
   );
-  Future<void> budgetEditor([Json? budget]) async {
+  Future<void> budgetEditor([Json? budget, String? setupMonth]) async {
     final amount = TextEditingController(
       text: budget == null
           ? ''
@@ -1278,7 +1311,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Text('For ${DateFormat.yMMMM().format(c.month)}'),
+                  Text(
+                    'For ${DateFormat.yMMMM().format(setupMonth == null ? c.month : DateTime.parse('$setupMonth-01'))}',
+                  ),
                   const SizedBox(height: 20),
                   DropdownButtonFormField<String>(
                     initialValue: cat,
@@ -1344,7 +1379,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       final saved = await presenter.save(
                         BudgetDraft(
                           categoryId: cat == 'all' ? null : cat,
-                          period: c.period,
+                          period: setupMonth ?? c.period,
                           limitAmount: minorUnits(amount.text)!,
                           alertThreshold: int.parse(threshold.text),
                         ),
@@ -1560,6 +1595,20 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               'Export your profile, transactions, budgets and categories as a JSON file.',
             ),
             const SizedBox(height: 20),
+            if (widget.presenters.notifications != null)
+              OutlinedButton.icon(
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute<void>(
+                    builder: (_) => NotificationSettingsScreen(
+                      presenter: widget.presenters.notifications!,
+                      billReminders: widget.presenters.billReminders,
+                    ),
+                  ),
+                ),
+                icon: const Icon(Icons.notifications_outlined),
+                label: const Text('Notifications'),
+              ),
             OutlinedButton.icon(
               onPressed: openPlanning,
               icon: const Icon(Icons.event_note),

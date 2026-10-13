@@ -84,6 +84,11 @@ def build_router(auth, mode, mailer):
     def planning_overview(start: date, end: date, user=Depends(current), db=Depends(repo)):
         return planning.overview(start, end, user, db)
 
+    @router.get('/notifications/bills')
+    def bill_reminders(lead_days: int = Query(default=1), user=Depends(current), db=Depends(repo)):
+        from ..domain.bill_reminders import upcoming
+        return upcoming(lead_days, user, db)
+
     @router.put('/financial-profile')
     def save_financial_profile(data: ps.Profile, user=Depends(current), db=Depends(repo)):
         values = data.model_dump()

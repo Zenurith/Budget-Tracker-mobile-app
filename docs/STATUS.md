@@ -1,5 +1,21 @@
 # Implementation status
 
+## Notification preferences and permission handling on 2026-10-13
+
+- **Settings → Notifications** now provides an off-by-default master preference, bill reminders with selectable lead time, budget alerts and cash-review reminders. Device-local preferences persist across restarts and sign-ins; they are separate from account data and OS authorization.
+- Android/iOS native permission bridges support status checks, explicit requests and opening system settings. The screen refreshes permission on resume and handles denial, blocking, provisional iOS access, errors and unsupported web/desktop targets without automatic prompts.
+- Reminder scheduling/delivery remains unimplemented and is clearly labelled on the screen. No backend or schema changes and no additional Flutter dependencies. See [Notifications](NOTIFICATIONS.md) for scope and device acceptance checks.
+- Validation: **100 Flutter tests passed**, analysis clean; Android debug APK, iOS simulator debug app, web release build and Wasm dry run succeeded. Actual OS permission dialogs and restart persistence still require device acceptance. The existing Android Kotlin Gradle migration warning remains.
+
+## Guided setup and available cash on 2026-10-13
+
+- Overview now leads with an available-until-payday card, or a 30-day horizon when no income date is confirmed. It reuses the protected-funding calculation and shows review timestamps, coverage shortfall and an expandable breakdown of obligations, essentials, reserves and buffer.
+- Amounts are hidden while refreshing, when cached/stale, when offline or transactions are pending, and after the earlier of the cash snapshot's 24-hour expiry and midnight in the financial profile timezone. Returning to the app refreshes the overview. A 30-second display check hides expired amounts while the dashboard stays open.
+- **Overview → Set up Pocketwise** opens a resumable checklist for cash balances, income, bills/debts, this month's budget, an optional savings goal and final funding review. Actions reuse the existing editors. **Continue later** leaves saved records intact; viewing setup does not save or infer financial inputs. Progress is derived from saved records and can require review again after changes.
+- Setup always checks the current month in the financial profile timezone, independently of the report month selected on Overview. Creating a savings goal does not reserve money; users explicitly reserve funds through protected funding.
+- No schema changes or live-data changes. Native device journeys and Windows screenshot baselines remain unverified for this slice.
+- Validation: **276 backend tests passed**, 9 opt-in integration tests skipped; **90 Flutter tests passed**. Flutter analysis is clean, the web release build and Wasm compatibility dry run succeeded, and updated phone/desktop dashboard screenshots were visually inspected. New tests cover setup ownership/current-month selection, explicit zero cash, spending invalidation, cached/expired/pending states, large-text layout and setup navigation.
+
 ## Records and account recovery on 2026-10-12
 
 - Settings now includes named opening balances, immutable reconciliation observations, CSV preview/import with duplicate review, and 30-day undo for ordinary transaction changes. Opening values affect recorded balances without becoming income or spendable cash; transactions still share one budget-wide ledger.

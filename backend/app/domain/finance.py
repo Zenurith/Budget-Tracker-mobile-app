@@ -156,7 +156,8 @@ def summary(month: str=None, user=None, db: DocumentRepository = None):
     from calendar import monthrange
     y, m = map(int, month.split('-'))
     recorded = expected(date(y, m, monthrange(y, m)[1]), user, db)
-    return {'recorded_balance': recorded, 'month': month, 'income': income, 'expenses': expense, 'balance': recorded['balance'] if recorded else sum((d['amount'] * (1 if d['type'] == 'income' else -1) for d in docs if d['date'][:7] <= month)), 'net': income - expense, 'category_breakdown': dict(by_category), 'daily_expenses': dict(sorted(daily.items())), 'trend': trend, 'review': review}
+    from .dashboard import summary as dashboard_summary
+    return {'dashboard': dashboard_summary(user, db), 'recorded_balance': recorded, 'month': month, 'income': income, 'expenses': expense, 'balance': recorded['balance'] if recorded else sum((d['amount'] * (1 if d['type'] == 'income' else -1) for d in docs if d['date'][:7] <= month)), 'net': income - expense, 'category_breakdown': dict(by_category), 'daily_expenses': dict(sorted(daily.items())), 'trend': trend, 'review': review}
 
 def parse_entry(data: ParseRequest, user=None, db: DocumentRepository = None):
     return parse(data.text, data.reference_date, categories(user, db))

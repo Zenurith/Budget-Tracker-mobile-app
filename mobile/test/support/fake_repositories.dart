@@ -5,6 +5,7 @@ import 'package:pocketwise/core/model/contracts.dart';
 import 'package:pocketwise/core/presentation/app_presenters.dart';
 import 'package:pocketwise/models/finance.dart';
 import 'package:pocketwise/features/planning/model/planning_repository.dart';
+import 'package:pocketwise/features/notifications/model/notification_repository.dart';
 
 const testAccount = Account(
   id: 'alex',
@@ -172,6 +173,7 @@ AppPresenters testPresenters(
   FakeRepositories repository, {
   ExportDestination? exportDestination,
   PlanningRepository? planningRepository,
+  NotificationRepository? notificationRepository,
 }) => AppPresenters(
   authRepository: repository,
   overviewRepository: repository,
@@ -181,6 +183,7 @@ AppPresenters testPresenters(
   planningRepository: planningRepository ?? FakePlanningRepository(),
   helperRepository: FakeHelperRepository(),
   fundingRepository: FakeFundingRepository(),
+  notificationRepository: notificationRepository,
   exportDestination: exportDestination,
   now: () => DateTime(2026, 9),
 );

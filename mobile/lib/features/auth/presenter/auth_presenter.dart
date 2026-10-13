@@ -16,6 +16,7 @@ class AuthState {
 
 class AuthPresenter extends Presenter<AuthState> {
   final AuthRepository _repository;
+  Future<void> Function()? beforeSessionEnd;
   bool _initialized = false;
   AuthPresenter(this._repository) : super(const AuthState(starting: true));
   Future<void> initialize() async {
@@ -35,8 +36,15 @@ class AuthPresenter extends Presenter<AuthState> {
   void clearError() => emit(AuthState(account: state.account));
 
   /// Locks the UI for fresh credentials while preserving unsynced device work.
-  void signInAgain() {
-    if (!state.busy && !disposed) emit(const AuthState());
+  Future<void> signInAgain() async {
+    if (state.busy || disposed) return;
+    final account = state.account;
+    try {
+      if (beforeSessionEnd != null) await beforeSessionEnd!();
+      if (!disposed) emit(const AuthState());
+    } catch (error) {
+      emit(AuthState(account: account, error: error.toString()));
+    }
   }
 
   Future<bool> updateProfile(String name) async {
@@ -109,6 +117,7 @@ class AuthPresenter extends Presenter<AuthState> {
     if (state.busy || disposed) return false;
     emit(AuthState(account: state.account, busy: true));
     try {
+      if (beforeSessionEnd != null) await beforeSessionEnd!();
       await _repository.logout();
       emit(const AuthState());
       return !disposed;
@@ -122,6 +131,7 @@ class AuthPresenter extends Presenter<AuthState> {
     if (state.busy || disposed) return false;
     emit(AuthState(account: state.account, busy: true));
     try {
+      if (beforeSessionEnd != null) await beforeSessionEnd!();
       await _repository.deleteAccount();
       emit(const AuthState());
       return !disposed;

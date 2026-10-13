@@ -27,6 +27,20 @@ class OverviewPresenter extends Presenter<OverviewState> {
       super(OverviewState(month: _month((now ?? DateTime.now)())));
   static DateTime _month(DateTime date) => DateTime(date.year, date.month);
   Json get summary => state.data.summary;
+  Json get dashboard => summary['dashboard'] as Json? ?? const {};
+  Json get setup => dashboard['setup'] as Json? ?? const {};
+  Json get availability => dashboard['availability'] as Json? ?? const {};
+  bool availabilityUsable({bool syncBlocked = false}) {
+    final expiry = DateTime.tryParse('${availability['expires_at']}');
+    return !syncBlocked &&
+        !busy &&
+        !state.stale &&
+        state.data.cachedAt == null &&
+        availability['usable'] == true &&
+        expiry != null &&
+        _now().isBefore(expiry);
+  }
+
   List<FinanceCategory> get categories => state.data.categories;
   List<Entry> get entries => state.data.entries;
   List<Json> get budgets => state.data.budgets;

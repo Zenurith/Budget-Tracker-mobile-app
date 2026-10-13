@@ -35,6 +35,27 @@ class PreviewRepository extends FakeRepositories {
       }),
     ];
     final summary = {
+      'dashboard': {
+        'setup': {'complete': true},
+        'availability': {
+          'usable': true,
+          'free_to_allocate': 134720,
+          'coverage_shortfall': 0,
+          'next_income_date': '2026-09-30',
+          'horizon_end': '2026-09-30',
+          'cash_reviewed_at': '2026-09-01T08:00:00Z',
+          'plan_reviewed_at': '2026-09-01T08:00:00Z',
+          'expires_at': '2026-09-02T00:00:00Z',
+          'liquid_total': 434720,
+          'scheduled_obligations': 100000,
+          'essential_allowances': 50000,
+          'required_savings': 0,
+          'emergency_reserved': 100000,
+          'savings_reserved': 0,
+          'wishlist_reserved': 0,
+          'buffer_amount': 50000,
+        },
+      },
       'balance': 434720,
       'income': 480000,
       'expenses': 45280,

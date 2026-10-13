@@ -20,6 +20,10 @@ import '../../features/records/model/records_repository.dart';
 import '../../features/records/presenter/records_presenter.dart';
 import '../../features/recovery/model/recovery_repository.dart';
 import '../../features/recovery/presenter/recovery_presenter.dart';
+import '../../features/notifications/model/notification_repository.dart';
+import '../../features/notifications/presenter/notification_presenter.dart';
+import '../../features/notifications/model/bill_reminder_repository.dart';
+import '../../features/notifications/presenter/bill_reminder_presenter.dart';
 
 /// Presentation composition: relays typed effects, never exposes data adapters.
 class AppPresenters {
@@ -35,6 +39,8 @@ class AppPresenters {
   final SyncPresenter? sync;
   final RecordsPresenter? records;
   final RecoveryPresenter? recovery;
+  final NotificationPresenter? notifications;
+  final BillReminderPresenter? billReminders;
   final List<StreamSubscription<Object?>> _subscriptions = [];
   Account? _account;
   final ExportDestination? exportDestination;
@@ -52,8 +58,16 @@ class AppPresenters {
     RecordsRepository? recordsRepository,
     CSVSource? csvSource,
     RecoveryRepository? recoveryRepository,
+    NotificationRepository? notificationRepository,
+    BillReminderSource? billReminderSource,
+    BillReminderScheduler? billReminderScheduler,
     DateTime Function()? now,
-  }) : records = recordsRepository == null || csvSource == null
+  }) : billReminders = notificationRepository == null || billReminderSource == null || billReminderScheduler == null
+           ? null : BillReminderPresenter(notificationRepository, billReminderSource, billReminderScheduler),
+       notifications = notificationRepository == null
+           ? null
+           : NotificationPresenter(notificationRepository),
+       records = recordsRepository == null || csvSource == null
            ? null
            : RecordsPresenter(recordsRepository, csvSource),
        recovery = recoveryRepository == null
@@ -69,8 +83,11 @@ class AppPresenters {
        funding = FundingPresenter(fundingRepository),
        budgets = BudgetPresenter(budgetRepository),
        categories = CategoryPresenter(categoryRepository) {
+    auth.beforeSessionEnd = billReminders?.endSession;
+    notifications?.onChanged = () async { await billReminders?.refresh(invalidate: true); };
     _subscriptions.add(
       auth.states.listen((state) {
+        if (!state.starting) unawaited(billReminders?.setAccount(state.account));
         if (identical(_account, state.account)) return;
         final changedOwner = _account?.id != state.account?.id;
         _account = state.account;
@@ -97,6 +114,7 @@ class AppPresenters {
         sync!.effects.listen((effect) {
           if (effect is DataChanged) {
             funding.invalidate();
+            unawaited(billReminders?.refresh(invalidate: true));
             unawaited(history.reload());
             unawaited(overview.reload());
           }
@@ -139,6 +157,7 @@ class AppPresenters {
         effects.listen((effect) {
           if (effect is DataChanged) {
             funding.invalidate();
+            unawaited(billReminders?.refresh(invalidate: true));
             unawaited(history.reload());
             unawaited(
               effect.month == null
@@ -167,5 +186,7 @@ class AppPresenters {
     sync?.dispose();
     records?.dispose();
     recovery?.dispose();
+    notifications?.dispose();
+    billReminders?.dispose();
   }
 }

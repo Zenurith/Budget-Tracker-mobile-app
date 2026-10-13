@@ -112,6 +112,7 @@ Settings also includes **Opening balances & reconciliation**, **Import CSV trans
 - [Protected cash and savings](docs/FUNDING.md)
 - [Guilt-free wishlist rules](docs/WISHLIST.md)
 - [Offline records and sync](docs/OFFLINE.md)
+- [Notification preferences and device permissions](docs/NOTIFICATIONS.md)
 - [Target data and API contracts](docs/DATA_AND_API.md)
 - [Confirmed decisions and open choices](docs/DECISIONS.md)
 - [Implementation plan and acceptance scenarios](docs/PLAN.md)
@@ -119,6 +120,12 @@ Settings also includes **Opening balances & reconciliation**, **Import CSV trans
 - [Testing and verification](docs/TESTING.md)
 
 The original Java starter remains untouched. The app lives in `mobile/` and `backend/`. This is a working prototype; new financial features, broader UI state coverage and remaining release work are tracked in the status document. Registration and demo onboarding require an explicit currency choice in both the UI and API (EUR, GBP, MYR, SGD or USD).
+
+## Guided setup and available cash
+
+Overview includes **Available until payday** (or **Available for the next 30 days** without a confirmed income date), calculated from the existing protected-funding plan. Expand **See the breakdown** for commitments, essentials, savings, wishlist reservations and buffer. Stale, cached or unsynced amounts are hidden until reviewed.
+
+Choose **Set up Pocketwise** on Overview for a checklist linking balances, income, bills/debts, the current month's budget, optional savings and funding review. You can use **Continue later** and return to progress derived from your saved records. It always uses the current budget month, even while browsing an older report.
 
 ## Financial helper
 
