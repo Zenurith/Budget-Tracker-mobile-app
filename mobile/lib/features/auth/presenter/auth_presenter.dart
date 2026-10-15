@@ -17,6 +17,7 @@ class AuthState {
 class AuthPresenter extends Presenter<AuthState> {
   final AuthRepository _repository;
   Future<void> Function()? beforeSessionEnd;
+  Future<void> Function(String owner)? beforeAccountDeletion;
   bool _initialized = false;
   AuthPresenter(this._repository) : super(const AuthState(starting: true));
   Future<void> initialize() async {
@@ -132,6 +133,9 @@ class AuthPresenter extends Presenter<AuthState> {
     emit(AuthState(account: state.account, busy: true));
     try {
       if (beforeSessionEnd != null) await beforeSessionEnd!();
+      if (state.account != null && beforeAccountDeletion != null) {
+        await beforeAccountDeletion!(state.account!.id);
+      }
       await _repository.deleteAccount();
       emit(const AuthState());
       return !disposed;

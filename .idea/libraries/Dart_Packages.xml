@@ -198,6 +198,41 @@
             </list>
           </value>
         </entry>
+        <entry key="flutter_local_notifications">
+          <value>
+            <list>
+              <option value="$USER_HOME$/.pub-cache/hosted/pub.dev/flutter_local_notifications-22.3.2/lib" />
+            </list>
+          </value>
+        </entry>
+        <entry key="flutter_local_notifications_linux">
+          <value>
+            <list>
+              <option value="$USER_HOME$/.pub-cache/hosted/pub.dev/flutter_local_notifications_linux-8.0.2/lib" />
+            </list>
+          </value>
+        </entry>
+        <entry key="flutter_local_notifications_platform_interface">
+          <value>
+            <list>
+              <option value="$USER_HOME$/.pub-cache/hosted/pub.dev/flutter_local_notifications_platform_interface-12.2.0/lib" />
+            </list>
+          </value>
+        </entry>
+        <entry key="flutter_local_notifications_web">
+          <value>
+            <list>
+              <option value="$USER_HOME$/.pub-cache/hosted/pub.dev/flutter_local_notifications_web-1.0.0/lib" />
+            </list>
+          </value>
+        </entry>
+        <entry key="flutter_local_notifications_windows">
+          <value>
+            <list>
+              <option value="$USER_HOME$/.pub-cache/hosted/pub.dev/flutter_local_notifications_windows-3.1.1/lib" />
+            </list>
+          </value>
+        </entry>
         <entry key="flutter_secure_storage">
           <value>
             <list>
@@ -611,6 +646,13 @@
             </list>
           </value>
         </entry>
+        <entry key="timezone">
+          <value>
+            <list>
+              <option value="$USER_HOME$/.pub-cache/hosted/pub.dev/timezone-0.11.2/lib" />
+            </list>
+          </value>
+        </entry>
         <entry key="typed_data">
           <value>
             <list>
@@ -732,6 +774,11 @@
       <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/file_picker_platform_interface-4.0.0/lib" />
       <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/file_picker_web-4.0.0/lib" />
       <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/flutter_lints-6.0.0/lib" />
+      <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/flutter_local_notifications-22.3.2/lib" />
+      <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/flutter_local_notifications_linux-8.0.2/lib" />
+      <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/flutter_local_notifications_platform_interface-12.2.0/lib" />
+      <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/flutter_local_notifications_web-1.0.0/lib" />
+      <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/flutter_local_notifications_windows-3.1.1/lib" />
       <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/flutter_secure_storage-11.2.0/lib" />
       <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/flutter_secure_storage_darwin-0.4.3/lib" />
       <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/flutter_secure_storage_linux-3.0.3/lib" />
@@ -788,6 +835,7 @@
       <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/test-1.31.1/lib" />
       <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/test_api-0.7.12/lib" />
       <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/test_core-0.6.18/lib" />
+      <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/timezone-0.11.2/lib" />
       <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/typed_data-1.4.0/lib" />
       <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/vector_math-2.4.3/lib" />
       <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/vm_service-15.3.0/lib" />

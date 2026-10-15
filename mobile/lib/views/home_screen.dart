@@ -1,3 +1,6 @@
+import 'dart:async';
+import '../features/budgets/model/budget_review_repository.dart';
+import 'budget_review_panel.dart';
 import 'financial_helper_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -32,6 +35,8 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   int page = 0;
+  BudgetReviewTarget? _review;
+  StreamSubscription<BudgetReviewTarget?>? _notificationSubscription;
   String search = '', filter = 'all';
   String? categoryFilter;
   final searchField = TextEditingController();
@@ -39,6 +44,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _notificationSubscription = widget.presenters.notificationNavigation.states
+        .listen((target) {
+          if (target != null) _openNotification(target);
+        });
+    final target = widget.presenters.notificationNavigation.state;
+    if (target != null) _openNotification(target);
   }
 
   @override
@@ -46,6 +57,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (state == AppLifecycleState.resumed) {
       widget.presenters.sync?.synchronize();
       c.reload();
+      if (_review != null) widget.presenters.budgetReview?.refresh();
     }
   }
 
@@ -61,8 +73,56 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _notificationSubscription?.cancel();
     searchField.dispose();
     super.dispose();
+  }
+
+  void _openNotification(BudgetReviewTarget target) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted ||
+          widget.presenters.auth.state.account?.id != target.ownerId) {
+        return;
+      }
+      if (!identical(widget.presenters.notificationNavigation.state, target)) {
+        return;
+      }
+      widget.presenters.notificationNavigation.consume();
+      Navigator.of(context).popUntil((route) => route.isFirst);
+      openBudgetReview(target);
+    });
+    WidgetsBinding.instance.ensureVisualUpdate();
+  }
+
+  void openBudgetReview(BudgetReviewTarget target) {
+    if (widget.presenters.budgetReview == null) return;
+    setState(() {
+      page = 2;
+      _review = target;
+    });
+    unawaited(c.showMonth(DateTime.parse('${target.period}-01')));
+    widget.presenters.budgetReview!.open(target);
+  }
+
+  Future<void> reviewBudgetTransactions(Json budget) async {
+    final month = DateTime.parse('${budget['period']}-01');
+    await c.showMonth(month);
+    if (!mounted) return;
+    searchField.clear();
+    setState(() {
+      page = 1;
+      search = '';
+      filter = 'expense';
+      categoryFilter = budget['category_id'];
+    });
+    await widget.presenters.history.apply(
+      EntryFilter(
+        start: month,
+        end: DateTime(month.year, month.month + 1, 0),
+        type: 'expense',
+        categoryId: budget['category_id'],
+      ),
+    );
   }
 
   void message(Object e) {
@@ -1163,7 +1223,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 PopupMenuButton<String>(
                   tooltip: 'Budget actions',
                   onSelected: (v) async {
-                    if (v == 'edit') {
+                    if (v == 'review') {
+                      openBudgetReview(
+                        BudgetReviewTarget(c.user!.id, b['period'], [b['id']]),
+                      );
+                    } else if (v == 'edit') {
                       budgetEditor(b);
                     } else if (await confirm(
                       'Remove budget?',
@@ -1181,9 +1245,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       }
                     }
                   },
-                  itemBuilder: (_) => const [
-                    PopupMenuItem(value: 'edit', child: Text('Edit')),
-                    PopupMenuItem(value: 'delete', child: Text('Remove')),
+                  itemBuilder: (_) => [
+                    if (widget.presenters.budgetReview != null)
+                      const PopupMenuItem(
+                        value: 'review',
+                        child: Text('Review spending'),
+                      ),
+                    const PopupMenuItem(value: 'edit', child: Text('Edit')),
+                    const PopupMenuItem(value: 'delete', child: Text('Remove')),
                   ],
                 ),
             ],
@@ -1238,51 +1307,58 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (mounted) await c.reload();
   }
 
-  Widget budgets() => Column(
-    crossAxisAlignment: CrossAxisAlignment.stretch,
-    children: [
-      Align(
-        alignment: Alignment.centerLeft,
-        child: FilledButton.icon(
-          onPressed: c.categories.isEmpty ? null : () => budgetEditor(),
-          icon: const Icon(Icons.add),
-          label: const Text('Set a budget'),
-        ),
-      ),
-      const SizedBox(height: 12),
-      OutlinedButton.icon(
-        onPressed: openPlanning,
-        icon: const Icon(Icons.event_note),
-        label: const Text('Plan income, debts & bills'),
-      ),
-      const SizedBox(height: 22),
-      panel(
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+  Widget budgets() => _review != null && widget.presenters.budgetReview != null
+      ? BudgetReviewPanel(
+          presenter: widget.presenters.budgetReview!,
+          adjust: (budget) => budgetEditor(budget, budget['period']),
+          transactions: reviewBudgetTransactions,
+          close: () => setState(() => _review = null),
+        )
+      : Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(
-              'A little intention goes a long way.',
-              style: Theme.of(context).textTheme.titleLarge,
+            Align(
+              alignment: Alignment.centerLeft,
+              child: FilledButton.icon(
+                onPressed: c.categories.isEmpty ? null : () => budgetEditor(),
+                icon: const Icon(Icons.add),
+                label: const Text('Set a budget'),
+              ),
             ),
-            const SizedBox(height: 10),
-            const Text(
-              'Track the whole month or make room for a specific category.',
-              style: TextStyle(color: mutedInk),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: openPlanning,
+              icon: const Icon(Icons.event_note),
+              label: const Text('Plan income, debts & bills'),
             ),
-            const SizedBox(height: 28),
-            if (c.budgets.isEmpty)
-              empty(
-                'Make your first plan.',
-                'Set an overall or category budget above.',
-                Icons.donut_large_rounded,
-              )
-            else
-              ...c.budgets.map((b) => budgetRow(b, editable: true)),
+            const SizedBox(height: 22),
+            panel(
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'A little intention goes a long way.',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: 10),
+                  const Text(
+                    'Track the whole month or make room for a specific category.',
+                    style: TextStyle(color: mutedInk),
+                  ),
+                  const SizedBox(height: 28),
+                  if (c.budgets.isEmpty)
+                    empty(
+                      'Make your first plan.',
+                      'Set an overall or category budget above.',
+                      Icons.donut_large_rounded,
+                    )
+                  else
+                    ...c.budgets.map((b) => budgetRow(b, editable: true)),
+                ],
+              ),
+            ),
           ],
-        ),
-      ),
-    ],
-  );
+        );
   Future<void> budgetEditor([Json? budget, String? setupMonth]) async {
     final amount = TextEditingController(
       text: budget == null
@@ -1603,6 +1679,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     builder: (_) => NotificationSettingsScreen(
                       presenter: widget.presenters.notifications!,
                       billReminders: widget.presenters.billReminders,
+                      budgetAlerts: widget.presenters.budgetAlerts,
                     ),
                   ),
                 ),

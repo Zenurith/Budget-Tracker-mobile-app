@@ -1,5 +1,28 @@
 # Implementation status
 
+## Actionable budget alerts on 2026-10-15
+
+- New budget notifications open a fresh review of the affected budgets/month, with spent/remaining amounts, top categories, days left and a current-month daily budget guide. The same view is available through Budget actions → Review spending.
+- Review transactions applies the correct month/category expense filters; Adjust limit reuses the budget editor. Missing/deleted budgets, offline/pending sync, expiry and logout are handled without retaining usable stale figures. The daily guide is explicitly budget headroom, not verified cash.
+- Shared native initialization preserves tap callbacks across bill and budget notifications, handles cold launches once, and validates account-bound targets. No migration or additional dependency. Physical-device tap/delivery journeys remain pending.
+- Validation: **292 backend tests passed**, 9 opt-in integration tests skipped; **127 Flutter tests passed**, analysis clean. Android debug, iOS simulator debug and web release builds succeeded, including the Wasm dry run. Tests cover owner isolation, cold/warm tap handling, deleted budgets, timezone/leap-year boundaries, stale/pending data, logout, transaction navigation and 200% text layout.
+
+
+## Budget alert delivery on 2026-10-15
+
+- Android/iOS now post a grouped local notification when fresh current-month spending reaches a budget's existing threshold. Checks run on sign-in/resume, relevant changes and synchronization, with manual status/retry in Settings. The financial profile determines the month; pending/offline spending defers checks.
+- Secure device-local attempt history prevents repeats per account/budget/month across restarts, preference changes and sign-ins. Bill and budget cancellation are isolated; logout waits for in-flight delivery and clears displayed alerts. Account deletion also removes that account's budget-alert history.
+- No migration, new dependency or background push service. Cash-review delivery remains planned. See [Notifications](NOTIFICATIONS.md) for first-enable behavior and best-effort delivery limits.
+- Validation: **286 backend tests passed**, 9 opt-in integration tests skipped. Full Flutter suite: **120 passed**, followed by 16 targeted notification tests including one additional large-text widget test (**121 total tests covered**). Android debug, iOS simulator debug and web release/Wasm dry-run builds succeeded. Physical-device delivery remains pending; the existing Kotlin Gradle migration warning remains.
+
+
+## Local bill reminders on 2026-10-14
+
+- Android/iOS now schedule grouped unpaid bill/debt reminders around 9 a.m. in the financial profile timezone, using the selected lead time and a rolling 60-day window. Settings shows schedule status, timezone, refresh and errors.
+- Planning/payment changes and preference updates rebuild reminders; session-ending actions await cancellation. Serialized native writes and stale-response guards prevent a late refresh from rescheduling after logout. Ordinary offline refreshes preserve the old schedule; missed times are not replayed.
+- Added an authenticated read-only reminder endpoint and local notification dependencies; no database migration. Budget and cash-review delivery remain planned. See [Notifications](NOTIFICATIONS.md) for timing and device limitations.
+- Validation: 282 backend tests passed, 9 opt-in integration tests skipped; full Flutter suite passed 111 tests plus the newly added status widget test (112 total). Flutter analysis is clean; Android debug, iOS simulator debug and web release builds succeeded, including the Wasm dry run. Physical-device delivery and reboot acceptance remain unverified.
+
 ## Notification preferences and permission handling on 2026-10-13
 
 - **Settings → Notifications** now provides an off-by-default master preference, bill reminders with selectable lead time, budget alerts and cash-review reminders. Device-local preferences persist across restarts and sign-ins; they are separate from account data and OS authorization.

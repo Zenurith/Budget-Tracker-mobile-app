@@ -23,7 +23,8 @@ class PocketwiseApp extends StatefulWidget {
   State<PocketwiseApp> createState() => _PocketwiseAppState();
 }
 
-class _PocketwiseAppState extends State<PocketwiseApp> with WidgetsBindingObserver {
+class _PocketwiseAppState extends State<PocketwiseApp>
+    with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
@@ -40,7 +41,10 @@ class _PocketwiseAppState extends State<PocketwiseApp> with WidgetsBindingObserv
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) widget.presenters.billReminders?.refresh();
+    if (state == AppLifecycleState.resumed) {
+      widget.presenters.billReminders?.refresh();
+      widget.presenters.budgetAlerts?.refresh();
+    }
   }
 
   @override

@@ -1,3 +1,5 @@
+import 'package:pocketwise/features/budgets/model/budget_review_repository.dart';
+import 'package:pocketwise/features/notifications/model/budget_alert_repository.dart';
 import 'package:pocketwise/features/funding/model/funding_repository.dart';
 import 'package:pocketwise/features/financial_helper/model/helper_repository.dart';
 import 'dart:async';
@@ -6,6 +8,7 @@ import 'package:pocketwise/core/presentation/app_presenters.dart';
 import 'package:pocketwise/models/finance.dart';
 import 'package:pocketwise/features/planning/model/planning_repository.dart';
 import 'package:pocketwise/features/notifications/model/notification_repository.dart';
+import 'package:pocketwise/features/notifications/model/bill_reminder_repository.dart';
 
 const testAccount = Account(
   id: 'alex',
@@ -174,6 +177,11 @@ AppPresenters testPresenters(
   ExportDestination? exportDestination,
   PlanningRepository? planningRepository,
   NotificationRepository? notificationRepository,
+  BudgetReviewRepository? budgetReviewRepository,
+  BudgetAlertSource? budgetAlertSource,
+  BudgetAlertDelivery? budgetAlertDelivery,
+  BillReminderSource? billReminderSource,
+  BillReminderScheduler? billReminderScheduler,
 }) => AppPresenters(
   authRepository: repository,
   overviewRepository: repository,
@@ -184,6 +192,11 @@ AppPresenters testPresenters(
   helperRepository: FakeHelperRepository(),
   fundingRepository: FakeFundingRepository(),
   notificationRepository: notificationRepository,
+  budgetReviewRepository: budgetReviewRepository,
+  budgetAlertSource: budgetAlertSource,
+  budgetAlertDelivery: budgetAlertDelivery,
+  billReminderSource: billReminderSource,
+  billReminderScheduler: billReminderScheduler,
   exportDestination: exportDestination,
   now: () => DateTime(2026, 9),
 );

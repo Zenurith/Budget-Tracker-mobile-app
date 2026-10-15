@@ -1,11 +1,20 @@
+import '../features/notifications/presenter/budget_alert_presenter.dart';
 import 'package:flutter/material.dart';
 import '../core/view/presenter_builder.dart';
 import '../features/notifications/model/notification_repository.dart';
 import '../features/notifications/presenter/notification_presenter.dart';
+import '../features/notifications/presenter/bill_reminder_presenter.dart';
 
 class NotificationSettingsScreen extends StatefulWidget {
   final NotificationPresenter presenter;
-  const NotificationSettingsScreen({super.key, required this.presenter});
+  final BillReminderPresenter? billReminders;
+  final BudgetAlertPresenter? budgetAlerts;
+  const NotificationSettingsScreen({
+    super.key,
+    required this.presenter,
+    this.billReminders,
+    this.budgetAlerts,
+  });
   @override
   State<NotificationSettingsScreen> createState() =>
       _NotificationSettingsScreenState();
@@ -66,11 +75,45 @@ class _NotificationSettingsScreenState extends State<NotificationSettingsScreen>
               child: Padding(
                 padding: EdgeInsets.all(16),
                 child: Text(
-                  'Reminder delivery is coming soon. You can save your preferences and manage device permission now.',
+                  'Bill reminders are scheduled on this device at 9 a.m. in your financial profile timezone. Bills due on the same date share one reminder. Open Pocketwise regularly to keep the next 60 days up to date.',
                 ),
               ),
             ),
             const SizedBox(height: 12),
+            if (widget.billReminders != null)
+              PresenterBuilder(
+                presenter: widget.billReminders!,
+                builder: (context, reminders) => Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        if (reminders.busy)
+                          const LinearProgressIndicator(
+                            semanticsLabel: 'Updating bill reminders',
+                          ),
+                        Text(reminders.error ?? reminders.message),
+                        if (reminders.timezone != null)
+                          Text('9 a.m. · ${reminders.timezone}'),
+                        if (reminders.windowEnd != null)
+                          Text(
+                            'Reminder window through ${reminders.windowEnd}',
+                          ),
+                        const Text(
+                          'Missed reminder times are not replayed. Device settings may delay or block delivery.',
+                        ),
+                        TextButton(
+                          onPressed: reminders.busy
+                              ? null
+                              : () => widget.billReminders!.refresh(),
+                          child: const Text('Refresh bill reminders'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
             Text(
               'Device permission',
               style: Theme.of(context).textTheme.titleLarge,
@@ -171,18 +214,46 @@ class _NotificationSettingsScreenState extends State<NotificationSettingsScreen>
               contentPadding: EdgeInsets.zero,
               title: const Text('Budget alerts'),
               subtitle: const Text(
-                'Use the alert thresholds set on your budgets.',
+                'Notify once per budget each month when synced spending reaches its threshold. Checked when you open or use Pocketwise, including budgets already above the threshold.',
               ),
               value: preferences.budgets,
               onChanged: editable && preferences.enabled
                   ? (v) => p.save(preferences.copy(budgets: v))
                   : null,
             ),
+            if (widget.budgetAlerts != null)
+              PresenterBuilder(
+                presenter: widget.budgetAlerts!,
+                builder: (context, alerts) => Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        if (alerts.busy)
+                          const LinearProgressIndicator(
+                            semanticsLabel: 'Checking budget alerts',
+                          ),
+                        Text(alerts.error ?? alerts.message),
+                        const Text(
+                          'Uses the current month in your financial profile timezone. No background spending checks while the app is closed.',
+                        ),
+                        TextButton(
+                          onPressed: alerts.busy
+                              ? null
+                              : () => widget.budgetAlerts!.refresh(),
+                          child: const Text('Check budget alerts'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
               title: const Text('Cash review reminders'),
               subtitle: const Text(
-                'Remind me when my confirmed cash and funding plan need review.',
+                'Delivery coming later. Your cash-review preference is saved.',
               ),
               value: preferences.cashReview,
               onChanged: editable && preferences.enabled

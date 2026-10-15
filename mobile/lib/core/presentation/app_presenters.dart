@@ -1,3 +1,8 @@
+import '../../features/notifications/presenter/notification_navigation_presenter.dart';
+import '../../features/budgets/model/budget_review_repository.dart';
+import '../../features/budgets/presenter/budget_review_presenter.dart';
+import '../../features/notifications/model/budget_alert_repository.dart';
+import '../../features/notifications/presenter/budget_alert_presenter.dart';
 import '../../features/funding/model/funding_repository.dart';
 import '../../features/funding/presenter/funding_presenter.dart';
 import 'dart:async';
@@ -27,6 +32,9 @@ import '../../features/notifications/presenter/bill_reminder_presenter.dart';
 
 /// Presentation composition: relays typed effects, never exposes data adapters.
 class AppPresenters {
+  final NotificationNavigationPresenter notificationNavigation;
+  final Future<void> Function()? initializeNotifications;
+  final BudgetReviewPresenter? budgetReview;
   final AuthPresenter auth;
   final OverviewPresenter overview;
   final TransactionPresenter transactions;
@@ -41,10 +49,14 @@ class AppPresenters {
   final RecoveryPresenter? recovery;
   final NotificationPresenter? notifications;
   final BillReminderPresenter? billReminders;
+  final BudgetAlertPresenter? budgetAlerts;
   final List<StreamSubscription<Object?>> _subscriptions = [];
   Account? _account;
   final ExportDestination? exportDestination;
   AppPresenters({
+    NotificationNavigationPresenter? notificationNavigation,
+    this.initializeNotifications,
+    BudgetReviewRepository? budgetReviewRepository,
     required AuthRepository authRepository,
     required OverviewRepository overviewRepository,
     required TransactionRepository transactionRepository,
@@ -59,11 +71,48 @@ class AppPresenters {
     CSVSource? csvSource,
     RecoveryRepository? recoveryRepository,
     NotificationRepository? notificationRepository,
+    BudgetAlertSource? budgetAlertSource,
+    BudgetAlertDelivery? budgetAlertDelivery,
     BillReminderSource? billReminderSource,
     BillReminderScheduler? billReminderScheduler,
     DateTime Function()? now,
-  }) : billReminders = notificationRepository == null || billReminderSource == null || billReminderScheduler == null
-           ? null : BillReminderPresenter(notificationRepository, billReminderSource, billReminderScheduler),
+  }) : notificationNavigation =
+           notificationNavigation ?? NotificationNavigationPresenter(),
+       budgetReview = budgetReviewRepository == null
+           ? null
+           : BudgetReviewPresenter(
+               budgetReviewRepository,
+               syncBlocked: () =>
+                   syncRepository != null &&
+                   (syncRepository.state.offline ||
+                       syncRepository.state.busy ||
+                       syncRepository.state.operations.isNotEmpty),
+             ),
+       budgetAlerts =
+           notificationRepository == null ||
+               budgetAlertSource == null ||
+               budgetAlertDelivery == null
+           ? null
+           : BudgetAlertPresenter(
+               notificationRepository,
+               budgetAlertSource,
+               budgetAlertDelivery,
+               syncBlocked: () =>
+                   syncRepository != null &&
+                   (syncRepository.state.offline ||
+                       syncRepository.state.busy ||
+                       syncRepository.state.operations.isNotEmpty),
+             ),
+       billReminders =
+           notificationRepository == null ||
+               billReminderSource == null ||
+               billReminderScheduler == null
+           ? null
+           : BillReminderPresenter(
+               notificationRepository,
+               billReminderSource,
+               billReminderScheduler,
+             ),
        notifications = notificationRepository == null
            ? null
            : NotificationPresenter(notificationRepository),
@@ -83,11 +132,38 @@ class AppPresenters {
        funding = FundingPresenter(fundingRepository),
        budgets = BudgetPresenter(budgetRepository),
        categories = CategoryPresenter(categoryRepository) {
-    auth.beforeSessionEnd = billReminders?.endSession;
-    notifications?.onChanged = () async { await billReminders?.refresh(invalidate: true); };
+    auth.beforeAccountDeletion = budgetAlerts?.forgetOwner;
+    auth.beforeSessionEnd = () async {
+      this.notificationNavigation.clear();
+      budgetReview?.setAccount(null);
+      // Start both invalidations before awaiting either device queue.
+      await Future.wait([
+        if (billReminders != null) billReminders!.endSession(),
+        if (budgetAlerts != null) budgetAlerts!.endSession(),
+      ]);
+    };
+    notifications?.onChanged = (invalidate) async {
+      await Future.wait([
+        if (billReminders != null)
+          billReminders!.refresh(invalidate: invalidate),
+        if (budgetAlerts != null) budgetAlerts!.refresh(),
+      ]);
+    };
+    _subscriptions.add(
+      planning.effects.listen((effect) {
+        if (effect is DataChanged) {
+          unawaited(billReminders?.refresh(invalidate: true));
+        }
+      }),
+    );
     _subscriptions.add(
       auth.states.listen((state) {
-        if (!state.starting) unawaited(billReminders?.setAccount(state.account));
+        if (!state.starting) {
+          this.notificationNavigation.setAccount(state.account);
+          budgetReview?.setAccount(state.account);
+          unawaited(billReminders?.setAccount(state.account));
+          unawaited(budgetAlerts?.setAccount(state.account));
+        }
         if (identical(_account, state.account)) return;
         final changedOwner = _account?.id != state.account?.id;
         _account = state.account;
@@ -107,6 +183,8 @@ class AppPresenters {
         sync!.states.listen((state) {
           if (state.operations.isNotEmpty || state.offline) {
             funding.invalidate();
+            budgetReview?.invalidate();
+            unawaited(budgetAlerts?.refresh());
           }
         }),
       );
@@ -114,7 +192,9 @@ class AppPresenters {
         sync!.effects.listen((effect) {
           if (effect is DataChanged) {
             funding.invalidate();
-            unawaited(billReminders?.refresh(invalidate: true));
+            budgetReview?.invalidate();
+            unawaited(budgetAlerts?.refresh());
+            unawaited(billReminders?.refresh());
             unawaited(history.reload());
             unawaited(overview.reload());
           }
@@ -132,6 +212,8 @@ class AppPresenters {
     _subscriptions.add(
       funding.effects.listen((effect) {
         if (effect is DataChanged) {
+          budgetReview?.invalidate();
+          unawaited(budgetAlerts?.refresh());
           unawaited(history.reload());
           unawaited(overview.reload());
         }
@@ -157,7 +239,8 @@ class AppPresenters {
         effects.listen((effect) {
           if (effect is DataChanged) {
             funding.invalidate();
-            unawaited(billReminders?.refresh(invalidate: true));
+            budgetReview?.invalidate();
+            unawaited(budgetAlerts?.refresh());
             unawaited(history.reload());
             unawaited(
               effect.month == null
@@ -169,11 +252,21 @@ class AppPresenters {
       );
     }
   }
-  Future<void> initialize() => auth.initialize();
+  Future<void> initialize() async {
+    await auth.initialize();
+    try {
+      await initializeNotifications?.call();
+    } catch (_) {
+      /* Scheduling status provides retry. */
+    }
+  }
+
   void dispose() {
     for (final subscription in _subscriptions) {
       subscription.cancel();
     }
+    notificationNavigation.dispose();
+    budgetReview?.dispose();
     auth.dispose();
     overview.dispose();
     transactions.dispose();
@@ -188,5 +281,6 @@ class AppPresenters {
     recovery?.dispose();
     notifications?.dispose();
     billReminders?.dispose();
+    budgetAlerts?.dispose();
   }
 }

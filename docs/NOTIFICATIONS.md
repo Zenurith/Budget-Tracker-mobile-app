@@ -1,24 +1,58 @@
-# Notification preferences and device permission
+# Notifications and bill reminders
 
-Open **Settings → Notifications** in the Android or iOS app.
+Open **Settings → Notifications** in the Android or iOS app. Enable **Use notifications**, select **Bill reminders**, and explicitly allow device notifications. Choose the due date, 1 day, 3 days or 7 days before.
 
-- **Use notifications** is off by default. Bill reminders, budget alerts and cash-review reminders are also off until selected.
-- Bill reminders have a lead-time preference of the due date, 1 day, 3 days or 7 days before. Budget alerts refer to each budget's existing threshold.
-- Preferences save automatically in secure local storage. They apply to this installation across sign-ins, persist through app restarts, and are not account data or synced to other devices. Signing out or deleting an account does not reset device preferences or OS permission. Turning the master preference off preserves the individual choices.
-- Preference changes never request OS permission. **Allow notifications** explicitly requests access. **Open system settings** provides a path when access is denied or blocked; permission is checked again when returning to the screen. **Refresh permission** supports manual retry. Permission errors do not overwrite saved preferences.
-- Android 13+ uses `POST_NOTIFICATIONS`; earlier supported Android versions check app-level notification enablement and use system settings when blocked. Android tracks whether a prior permission choice was made, while dismissed requests do not count as a first denial. iOS uses `UNUserNotificationCenter`, distinguishes provisional authorization, and opens notification settings (app settings on iOS before 16).
-- Web and other unsupported platforms show an explicit unsupported message and do not request permission or offer editable device-notification preferences. Existing in-app budget alerts remain available.
+## Bill delivery
 
-This slice **does not schedule or deliver reminders**, register push tokens, add background jobs or send test notifications. The screen states that reminder delivery is coming soon. A subsequent delivery implementation must honor the master preference, each reminder type, current OS permission, sign-in ownership and sign-out cleanup; it must never interpret saved preferences as a permission grant.
+- Pocketwise schedules local reminders around **9 a.m. in the financial profile timezone**. All unpaid bills and debt payments due on the same date share one reminder. Partial payments remain included; fully linked payments remove the paid occurrence.
+- The app schedules a rolling **60-day** window, with at most 60 notifications. It refreshes on sign-in, app resume, notification settings changes, planning edits and synchronization. Open Pocketwise regularly to extend the window. The financial profile must have a timezone.
+- Bill/debt edits, deletion and payment-link changes cancel the old schedule before fetching a replacement. If that fetch fails, reconnect and refresh. Ordinary refresh failures preserve previously scheduled reminders, which may be stale. Changes made on another device are reflected after a successful refresh here.
+- Past reminder times are skipped; there is no catch-up burst. Stable date IDs prevent duplicate pending notifications. A local history of elapsed scheduled times suppresses replay after lead-time changes; it is not proof of delivery.
+- Notifications contain the unpaid-item count and due date, without bill names or amounts. Tapping opens Pocketwise. The Settings screen shows scheduled dates, timezone, window end and refresh errors.
+- Sign-out, session reauthentication and account deletion await cancellation. If cancellation fails, the session-ending action reports an error so it can be retried. Switching accounts clears the previous account's schedule.
 
-## Implementation and verification
+Android uses inexact alarms without exact-alarm permission and includes receivers to restore scheduled notifications after reboot. OS power management, notification channel settings, Focus modes and permission changes may delay or suppress delivery. Scheduling is best effort, not a guaranteed alarm. No push tokens, server delivery jobs or background network refresh are implemented.
 
-The View calls a plain-Dart notification presenter through a repository interface. The device adapter handles secure persistence and a small `pocketwise/notifications` method channel. Android and iOS implement `status`, `request` and `openSettings`; no additional Flutter dependencies or backend/schema changes are needed.
+## Budget alert delivery
 
-Automated coverage checks persistence across adapter instances, off-by-default behavior, read/write failures, duplicate requests, permission revocation, settings errors, unsupported platforms, explicit permission requests, resume refresh, Settings navigation and a 390-pixel phone layout at 200% text size.
+Enable **Use notifications** and **Budget alerts**, then allow device notifications. Pocketwise checks the current month in your financial profile timezone on sign-in, resume, preference changes, budget/transaction changes, payment and wishlist activity, imports/undo, and successful synchronization. **Check budget alerts** provides a manual retry. Checks require a financial-profile timezone and fresh server data; pending, conflicting or offline spending changes defer checks until synchronization succeeds. Browsing a historical report does not change the alert month.
 
-Validation on 2026-10-13: all 100 Flutter tests passed and analysis was clean. Android debug, iOS simulator debug and web release builds succeeded, including the Wasm compatibility dry run.
+Overall and category budgets use their existing percentage thresholds. Exact integer comparisons avoid rounding a nearly reached threshold upward. Enabling alerts also checks budgets already at or above their threshold. Multiple newly eligible budgets share one generic notification with their count and month; amounts and category names are omitted. Later alerts replace that displayed budget notification, without changing scheduled bill reminders.
 
-Before shipping, verify on devices: first-run allow/deny/dismiss; repeated denial and system-settings recovery; permission revocation while backgrounded; restart persistence; Android before/after API 33; iOS authorization and return from settings. Builds and mocked permission tests do not establish those real OS journeys.
+Each budget has at most one notification attempt per month per installation/account. Restarting, switching accounts, signing out/in, toggling preferences, changing thresholds or dropping below and crossing again do not reset this history. A new month or newly eligible budget can alert again. The device stores opaque budget IDs and month keys in secure storage, prunes old history on delivery checks, and removes the current account's history when deleting that account. Signing out cancels the displayed alert but retains deduplication history.
 
-Platform references: [Android notification permission](https://developer.android.com/develop/ui/compose/notifications/notification-permission), [Apple notification settings](https://developer.apple.com/documentation/usernotifications/unusernotificationcenter/getnotificationsettings(completionhandler:)), and [Apple notification-settings link](https://developer.apple.com/documentation/uikit/uiapplication/opennotificationsettingsurlstring).
+To prevent duplicate alerts after a crash or ambiguous native failure, the app records the attempt before asking the OS to display it. A failure in that gap can suppress an alert for the month; history is not proof of delivery. OS permission, channel settings or Focus can also suppress delivery. No background spending checks or remote push occur while the app is closed. Other devices check independently.
+
+### Actionable budget reviews
+
+New budget notifications open a fresh review of the affected budgets and alert month. The same view is available from **Budgets → Budget actions → Review spending**. It shows spent/limit, remaining or overspent amount, threshold status, the top three spending categories, and days remaining in the financial-profile timezone. **Review transactions** opens that month with expense/category filters; **Adjust limit** reuses the existing budget editor and refreshes the review afterwards.
+
+For the current month, the daily guide is `max(0, remaining budget) / days remaining`, rounded down to minor currency units, including today. It is budget headroom, not verified cash; overlapping overall/category guides must not be added together. Historical/future months and missing timezones have no daily guide. The review includes the same recorded monthly expenses as the budget totals, including any future-dated entries in that month.
+
+Reviews fetch fresh owner-scoped server data, without an offline-cache fallback. Figures and actions are hidden during loading, after edits or pending-sync changes, and after the earlier of five minutes and local midnight (the display checks every 30 seconds). Resume and manual refresh fetch again. Deleted budgets show an unavailable message. Older notifications without a review payload open the app normally.
+
+The shared native notification initializer handles both warm taps and cold-start launch details without permission prompts. Payloads contain only owner, month and opaque budget IDs; amounts/category names remain inside the app. Navigation waits for authentication, rejects another owner's target, and clears on session end. Tapping a notification does not change a budget or transaction. Physical Android/iOS tap journeys still need device acceptance.
+
+**Cash-review notification delivery remains planned.** Its preference is saved and labelled accordingly. Existing in-app budget alerts remain available.
+
+## Preferences and permission
+
+All choices are off by default. Preferences save automatically in secure local storage, apply to this installation across sign-ins, and are not synced account data. Signing out does not reset preferences or OS permission. Turning the master preference off preserves individual choices while cancelling bill reminders.
+
+Preference changes never prompt for OS permission. **Allow notifications** explicitly requests access; **Open system settings** supports recovery from denial or blocking. Permission is rechecked on resume and can be refreshed manually. iOS provisional authorization is accepted. Web and other unsupported platforms cannot schedule device reminders.
+
+The existing `pocketwise/notifications` native bridge handles permission status, requests and settings. `flutter_local_notifications` handles scheduling, with `timezone` converting the server's UTC instants. The authenticated read-only `/notifications/budgets` endpoint returns current-month eligible budget IDs. The `/notifications/bills` endpoint derives owner-scoped occurrences and timezone-aware dates from the existing planning model. No database migration is required. Secure storage holds the schedule owner and elapsed-time history separately from preferences.
+
+## Verification
+
+Validation on 2026-10-14: 282 backend tests passed, with 9 opt-in integration tests skipped. The full Flutter suite passed 111 tests, followed by all 5 notification widget tests including a newly added schedule-status/error test (112 tests total). Coverage includes grouping, partial/full payments, deletion, ownership, daylight-saving transitions, missed times, duplicate prevention, preference changes, network failures, refresh races and cancellation during logout.
+
+Flutter analysis is clean. Android debug, iOS simulator debug and web release builds succeeded, including the Wasm compatibility dry run. The existing Android Kotlin Gradle migration warning remains.
+
+Before shipping, verify on physical Android and iOS devices: allow/deny/dismiss and settings recovery, actual scheduled delivery, revocation while backgrounded, restart/reboot restoration, account switching and logout cleanup. Builds and mocked native adapters do not establish these real OS journeys.
+
+Budget-alert validation on 2026-10-15: tests cover exact threshold boundaries, category/overall scope, income exclusion, corrections/deletion, timezone month boundaries, owner isolation, duplicate suppression across restart and sign-in, pending sync, permission denial, native errors, logout races, independent bill cancellation, account deletion and large-text status/retry UI. Physical-device delivery remains pending.
+
+Validation results: 286 backend tests passed (9 opt-in integration tests skipped); the full Flutter suite passed 120 tests, then 16 notification regression tests passed including the additional widget test (121 total tests covered). Android debug, iOS simulator debug and web release builds succeeded, including the Wasm dry run.
+
+Actionable-review validation on 2026-10-15: 292 backend tests passed (9 opt-in integration tests skipped), all 127 Flutter tests passed, and analysis was clean. Android debug, iOS simulator debug and web release builds succeeded, including the Wasm dry run. Tests cover cold/warm routing, shared initialization, owner validation, month/category navigation, review expiry, deleted budgets, daily-guide rounding and 200% phone text. Native tap journeys remain unverified on physical devices.

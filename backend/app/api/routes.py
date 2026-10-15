@@ -84,6 +84,11 @@ def build_router(auth, mode, mailer):
     def planning_overview(start: date, end: date, user=Depends(current), db=Depends(repo)):
         return planning.overview(start, end, user, db)
 
+    @router.get('/notifications/budgets')
+    def budget_alerts(user=Depends(current), db=Depends(repo)):
+        from ..domain.budget_alerts import current as check
+        return check(user, db)
+
     @router.get('/notifications/bills')
     def bill_reminders(lead_days: int = Query(default=1), user=Depends(current), db=Depends(repo)):
         from ..domain.bill_reminders import upcoming
@@ -209,6 +214,11 @@ def build_router(auth, mode, mailer):
     @router.get('/budgets')
     def list_budgets(period: str=Query(pattern='^\\d{4}-(0[1-9]|1[0-2])$'), user=Depends(current), db=Depends(repo)):
         return finance.list_budgets(period=period, user=user, db=db)
+
+    @router.get('/budgets/review')
+    def budget_review(period: str=Query(pattern=r'^\d{4}-(0[1-9]|1[0-2])$'), user=Depends(current), db=Depends(repo)):
+        from ..domain.budget_review import review
+        return review(period, user, db)
 
     @router.post('/budgets', status_code=201)
     def set_budget(data: Budget, user=Depends(current), db=Depends(repo)):

@@ -41,7 +41,7 @@ class NotificationState {
 
 class NotificationPresenter extends Presenter<NotificationState> {
   final NotificationRepository repository;
-  Future<void> Function()? onChanged;
+  Future<void> Function(bool invalidate)? onChanged;
   bool _loading = false;
   NotificationPresenter(this.repository) : super(const NotificationState());
 
@@ -70,7 +70,7 @@ class NotificationPresenter extends Presenter<NotificationState> {
     emit(state.copy(saving: true, clearError: true));
     try {
       await repository.save(preferences);
-      if (!disposed && onChanged != null) await onChanged!();
+      if (!disposed && onChanged != null) await onChanged!(true);
       if (!disposed) emit(state.copy(preferences: preferences, saving: false));
     } catch (_) {
       emit(
@@ -101,7 +101,7 @@ class NotificationPresenter extends Presenter<NotificationState> {
     emit(state.copy(checking: true, clearPermissionError: true));
     try {
       final permission = await action();
-      if (!disposed && onChanged != null) await onChanged!();
+      if (!disposed && onChanged != null) await onChanged!(false);
       if (!disposed) emit(state.copy(permission: permission, checking: false));
     } catch (_) {
       emit(

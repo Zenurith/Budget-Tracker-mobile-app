@@ -1,3 +1,9 @@
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import '../data/local_notification_runtime.dart';
+import '../data/api_budget_review_repository.dart';
+import '../features/notifications/presenter/notification_navigation_presenter.dart';
+import '../data/api_budget_alert_source.dart';
+import '../data/local_budget_alert_delivery.dart';
 import '../data/api_funding_repository.dart';
 import '../data/api_helper_repository.dart';
 import '../core/presentation/app_presenters.dart';
@@ -15,17 +21,33 @@ import '../data/local_bill_reminder_scheduler.dart';
 
 AppPresenters createPresenters() {
   final api = Api();
+  final navigation = NotificationNavigationPresenter();
+  final plugin = FlutterLocalNotificationsPlugin();
+  final runtime = LocalNotificationRuntime(plugin, navigation.open);
   final offline = OfflineRepository(api, SecureOfflinePersistence(api.storage));
   api.beforeRequest = offline.guard;
   final finance = ApiFinanceRepository(api, offline: offline);
   return AppPresenters(
+    notificationNavigation: navigation,
+    initializeNotifications: runtime.initialize,
+    budgetReviewRepository: ApiBudgetReviewRepository(api),
     authRepository: ApiAuthRepository(api, offline: offline),
     recordsRepository: ApiRecordsRepository(api),
     csvSource: FileCSVSource(),
     recoveryRepository: ApiRecoveryRepository(api),
     notificationRepository: DeviceNotificationRepository(api.storage),
+    budgetAlertSource: ApiBudgetAlertSource(api),
+    budgetAlertDelivery: LocalBudgetAlertDelivery(
+      api.storage,
+      plugin: plugin,
+      initializeNotifications: runtime.initialize,
+    ),
     billReminderSource: ApiBillReminderSource(api),
-    billReminderScheduler: LocalBillReminderScheduler(api.storage),
+    billReminderScheduler: LocalBillReminderScheduler(
+      api.storage,
+      plugin: plugin,
+      initializeNotifications: runtime.initialize,
+    ),
     syncRepository: offline,
     overviewRepository: finance,
     transactionRepository: finance,

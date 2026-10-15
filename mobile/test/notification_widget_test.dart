@@ -4,10 +4,45 @@ import 'package:pocketwise/features/notifications/model/notification_repository.
 import 'package:pocketwise/features/notifications/presenter/notification_presenter.dart';
 import 'package:pocketwise/views/notification_settings_screen.dart';
 import 'support/fake_notifications.dart';
+import 'support/fake_bill_reminders.dart';
+import 'package:pocketwise/features/notifications/presenter/bill_reminder_presenter.dart';
 import 'support/fake_repositories.dart';
 import 'package:pocketwise/main.dart';
 
 void main() {
+  testWidgets('bill schedule status refreshes and exposes retry errors', (
+    tester,
+  ) async {
+    final repo = FakeNotifications()
+      ..preferences = const NotificationPreferences(enabled: true, bills: true)
+      ..status = NotificationPermission.granted;
+    final source = FakeBillSource();
+    final reminders = BillReminderPresenter(repo, source, FakeBillScheduler());
+    final p = NotificationPresenter(repo);
+    addTearDown(reminders.dispose);
+    addTearDown(p.dispose);
+    await reminders.setAccount(testAccount);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: NotificationSettingsScreen(
+          presenter: p,
+          billReminders: reminders,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('1 bill reminder dates scheduled.'), findsOneWidget);
+    source.fail = true;
+    await tester.scrollUntilVisible(find.text('Refresh bill reminders'), 200);
+    await tester.tap(find.text('Refresh bill reminders'));
+    await tester.pumpAndSettle();
+    expect(
+      find.textContaining('Previously scheduled reminders may still arrive'),
+      findsOneWidget,
+    );
+    expect(repo.requests, 0);
+    expect(tester.takeException(), isNull);
+  });
   testWidgets('settings opens notifications without requesting permission', (
     tester,
   ) async {
