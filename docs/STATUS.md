@@ -187,3 +187,18 @@ Original requirement: Android 8+ and iOS 13+. Generated iOS target: 15.0. Androi
 - Native device builds and real Supabase Postgres integration were not verified.
 
 The September results cover tracking and planning inputs; October adds the financial helper and protected funding. Wishlist checks are recorded in the October 5 validation; other remaining R1 requirements are not validated. See [TESTING.md](TESTING.md) for commands and required acceptance suites.
+
+## Planning payment calendar on 2026-10-19
+
+- Financial plan now includes a Monday-first month calendar with obligation markers, profile-local today highlighting, overdue highlighting and a selectable daily agenda. Selecting the same day again or Show whole month restores the full agenda; month changes reset selection.
+- Existing bill/debt occurrences and payment/link/unlink actions are reused. Overdue counts cover the selected month only, including partially paid and unknown-amount overdue obligations.
+- The calendar shows the explicitly confirmed next income date from Protected Funding. Income effective dates and monthly estimates are not interpreted as paydays; expected income does not create a transaction or increase available cash.
+- Calendar selection is disabled during loading/saving and after a refresh error. No new dependencies or database changes.
+
+## Cash-review reminders on 2026-10-19
+
+- Settings → Notifications now delivers opt-in cash-review reminders on supported Android/iOS devices. Checks run on sign-in/resume, relevant changes and successful synchronization, with manual status/retry. Offline, busy or pending sync defers checks.
+- A read-only endpoint reuses funding availability, suppresses onboarding reminders before funding setup begins and uses the financial profile's local day. One attempt per account/day is retained in secure device storage; logout cancels the displayed notification and account deletion clears its history.
+- Taps open freshly loaded Protected Funding using the shared native initializer. Account-bound targets wait for authentication and reject another owner's notifications. Bill/budget cancellation remains independent.
+- No new dependencies, database migrations, live-data changes, background polling or server notification jobs. Delivery while the app is closed is not implemented; physical Android/iOS delivery remains unverified.
+- Validation: 298 backend tests passed, 9 opt-in integration tests skipped; all 140 Flutter tests passed; Flutter analysis clean. Coverage includes stale/healthy/unstarted funding, expiry and local-day boundaries, account isolation, duplicate prevention, native failure, logout races, preferences, deletion, navigation and large-text layout.

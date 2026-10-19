@@ -1,3 +1,4 @@
+import '../features/notifications/presenter/cash_review_presenter.dart';
 import '../features/notifications/presenter/budget_alert_presenter.dart';
 import 'package:flutter/material.dart';
 import '../core/view/presenter_builder.dart';
@@ -9,11 +10,13 @@ class NotificationSettingsScreen extends StatefulWidget {
   final NotificationPresenter presenter;
   final BillReminderPresenter? billReminders;
   final BudgetAlertPresenter? budgetAlerts;
+  final CashReviewPresenter? cashReview;
   const NotificationSettingsScreen({
     super.key,
     required this.presenter,
     this.billReminders,
     this.budgetAlerts,
+    this.cashReview,
   });
   @override
   State<NotificationSettingsScreen> createState() =>
@@ -253,13 +256,41 @@ class _NotificationSettingsScreenState extends State<NotificationSettingsScreen>
               contentPadding: EdgeInsets.zero,
               title: const Text('Cash review reminders'),
               subtitle: const Text(
-                'Delivery coming later. Your cash-review preference is saved.',
+                'Notify at most once a day when your cash balances or funding plan need review. Checked when you open or use Pocketwise.',
               ),
               value: preferences.cashReview,
               onChanged: editable && preferences.enabled
                   ? (v) => p.save(preferences.copy(cashReview: v))
                   : null,
             ),
+            if (widget.cashReview != null)
+              PresenterBuilder(
+                presenter: widget.cashReview!,
+                builder: (context, alerts) => Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        if (alerts.busy)
+                          const LinearProgressIndicator(
+                            semanticsLabel: 'Checking budget alerts',
+                          ),
+                        Text(alerts.error ?? alerts.message),
+                        const Text(
+                          'Uses the current month in your financial profile timezone. No background spending checks while the app is closed.',
+                        ),
+                        TextButton(
+                          onPressed: alerts.busy
+                              ? null
+                              : () => widget.cashReview!.refresh(),
+                          child: const Text('Check cash review'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
             const Text(
               'Changes save automatically. Your in-app budget alerts remain available regardless of these device notification preferences.',
             ),

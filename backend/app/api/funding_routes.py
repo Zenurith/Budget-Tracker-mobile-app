@@ -6,6 +6,10 @@ from ..domain import funding, funding_commands as fc
 def build_funding_router(current, repo):
     router = APIRouter()
 
+    @router.get('/notifications/cash-review')
+    def cash_review(user=Depends(current), db=Depends(repo)):
+        return funding.cash_review(user, db)
+
     @router.get('/funding/availability')
     @router.get('/funding/snapshot')
     @router.get('/funding/plan')

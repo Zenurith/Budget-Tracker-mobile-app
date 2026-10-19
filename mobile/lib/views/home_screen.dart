@@ -37,6 +37,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   int page = 0;
   BudgetReviewTarget? _review;
   StreamSubscription<BudgetReviewTarget?>? _notificationSubscription;
+  StreamSubscription<String?>? _cashReviewSubscription;
   String search = '', filter = 'all';
   String? categoryFilter;
   final searchField = TextEditingController();
@@ -48,6 +49,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         .listen((target) {
           if (target != null) _openNotification(target);
         });
+    final cash = widget.presenters.notificationNavigation.cashReview;
+    _cashReviewSubscription = cash.states.listen((owner) {
+      if (owner != null) _openCashReview(owner);
+    });
+    if (cash.state != null) _openCashReview(cash.state!);
     final target = widget.presenters.notificationNavigation.state;
     if (target != null) _openNotification(target);
   }
@@ -74,8 +80,28 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _notificationSubscription?.cancel();
+    _cashReviewSubscription?.cancel();
     searchField.dispose();
     super.dispose();
+  }
+
+  void _openCashReview(String owner) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final navigation = widget.presenters.notificationNavigation.cashReview;
+      if (!mounted ||
+          widget.presenters.auth.state.account?.id != owner ||
+          navigation.state != owner) {
+        return;
+      }
+      navigation.consume();
+      Navigator.of(context).popUntil((route) => route.isFirst);
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => FundingScreen(presenter: widget.presenters.funding),
+        ),
+      );
+    });
+    WidgetsBinding.instance.ensureVisualUpdate();
   }
 
   void _openNotification(BudgetReviewTarget target) {
@@ -1680,6 +1706,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       presenter: widget.presenters.notifications!,
                       billReminders: widget.presenters.billReminders,
                       budgetAlerts: widget.presenters.budgetAlerts,
+                      cashReview: widget.presenters.cashReview,
                     ),
                   ),
                 ),

@@ -167,3 +167,19 @@ def test_atomic_rollback_and_concurrent_retry(client, monkeypatch):
         results = list(executor.map(lambda _: pay(due['id'], data, user, repo), range(2)))
     assert results[0] == results[1]
     assert len(repo.find('transactions', user_id=user['id'])) == 1
+
+
+def test_calendar_payday_is_explicit_and_owner_scoped(client):
+    from app.domain.planning import overview
+    from unittest.mock import Mock
+
+    user = {'id': 'calendar-owner'}
+    db = Mock()
+    funding = {'plan': {'next_income_date': '2028-02-29'}}
+    db.get.side_effect = lambda collection, **filters: (
+        user if collection == 'users' else funding if collection == 'funding' else None)
+    result = overview(date(2028, 2, 1), date(2028, 2, 29), user, db)
+    assert result['next_income_date'] == '2028-02-29'
+    db.get.assert_any_call('funding', id=user['id'], user_id=user['id'])
+    funding['plan'] = None
+    assert overview(date(2028, 2, 1), date(2028, 2, 29), user, db)['next_income_date'] is None

@@ -44,6 +44,7 @@ class _PocketwiseAppState extends State<PocketwiseApp>
     if (state == AppLifecycleState.resumed) {
       widget.presenters.billReminders?.refresh();
       widget.presenters.budgetAlerts?.refresh();
+      widget.presenters.cashReview?.refresh();
     }
   }
 

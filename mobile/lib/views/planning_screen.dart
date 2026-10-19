@@ -8,6 +8,7 @@ import '../features/planning/model/input_rules.dart';
 import '../features/planning/presenter/planning_presenter.dart';
 import '../models/finance.dart';
 import 'planning_editors.dart';
+import 'planning_calendar.dart';
 
 class PlanningScreen extends StatelessWidget {
   final AppPresenters presenters;
@@ -235,13 +236,10 @@ class PlanningScreen extends StatelessWidget {
               ),
               if (state.profile == null)
                 const Text('Dates use UTC until you confirm your timezone.'),
-              if (state.items('occurrences').isEmpty)
-                const Padding(
-                  padding: EdgeInsets.all(16),
-                  child: Text('No scheduled obligations in this month.'),
-                ),
-              for (final due in state.items('occurrences'))
-                occurrenceCard(context, state, due),
+              PlanningCalendar(
+                state: state,
+                occurrenceBuilder: (due) => occurrenceCard(context, state, due),
+              ),
             ],
           ],
         ),
@@ -318,6 +316,9 @@ class PlanningScreen extends StatelessWidget {
     PlanningState state,
     Json due,
   ) => Card(
+    color: due['overdue'] == true
+        ? Theme.of(context).colorScheme.errorContainer
+        : null,
     child: Padding(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -328,7 +329,7 @@ class PlanningScreen extends StatelessWidget {
             style: Theme.of(context).textTheme.titleMedium,
           ),
           Text(
-            '${(due['state'] as String).replaceAll('_', ' ')}${due['overdue'] == true && due['state'] == 'partially_paid' ? ' · overdue' : ''}',
+            '${(due['state'] as String).replaceAll('_', ' ')}${due['overdue'] == true && due['state'] != 'overdue' ? ' · overdue' : ''}',
           ),
           Text(
             'Expected: ${due['expected_amount'] == null ? 'Unknown' : money(due['expected_amount'], currency)} · Paid: ${money(due['paid_amount'], currency)}',

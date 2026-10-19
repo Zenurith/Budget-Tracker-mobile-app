@@ -315,3 +315,16 @@ def allocate(kind, data: Allocation, user, db):
 def events(user, db, page=1, page_size=20):
     items = sorted(db.find('funding_events', user_id=user['id']), key=lambda e: (e['created_at'], e['id']), reverse=True)
     return {'items': items[(page-1)*page_size:page*page_size], 'page': page, 'total': len(items)}
+
+
+def cash_review(user, db):
+    """Read-only reminder eligibility; never include financial amounts."""
+    data = availability(user, db)
+    started = data['snapshot'] is not None or data['plan'] is not None
+    return {
+        'owner_id': user['id'], 'day': data['as_of'],
+        'needs_review': started and not data['usable'],
+        'reason': ('Your cash balances and funding plan are up to date.' if data['usable']
+                   else 'Review your cash balances and funding plan.' if started
+                   else 'Set up protected funding to receive cash-review reminders.'),
+    }

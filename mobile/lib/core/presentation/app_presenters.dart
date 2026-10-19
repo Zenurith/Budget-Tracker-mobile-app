@@ -1,3 +1,5 @@
+import '../../features/notifications/model/cash_review_repository.dart';
+import '../../features/notifications/presenter/cash_review_presenter.dart';
 import '../../features/notifications/presenter/notification_navigation_presenter.dart';
 import '../../features/budgets/model/budget_review_repository.dart';
 import '../../features/budgets/presenter/budget_review_presenter.dart';
@@ -50,6 +52,7 @@ class AppPresenters {
   final NotificationPresenter? notifications;
   final BillReminderPresenter? billReminders;
   final BudgetAlertPresenter? budgetAlerts;
+  final CashReviewPresenter? cashReview;
   final List<StreamSubscription<Object?>> _subscriptions = [];
   Account? _account;
   final ExportDestination? exportDestination;
@@ -71,6 +74,8 @@ class AppPresenters {
     CSVSource? csvSource,
     RecoveryRepository? recoveryRepository,
     NotificationRepository? notificationRepository,
+    CashReviewSource? cashReviewSource,
+    CashReviewDelivery? cashReviewDelivery,
     BudgetAlertSource? budgetAlertSource,
     BudgetAlertDelivery? budgetAlertDelivery,
     BillReminderSource? billReminderSource,
@@ -82,6 +87,21 @@ class AppPresenters {
            ? null
            : BudgetReviewPresenter(
                budgetReviewRepository,
+               syncBlocked: () =>
+                   syncRepository != null &&
+                   (syncRepository.state.offline ||
+                       syncRepository.state.busy ||
+                       syncRepository.state.operations.isNotEmpty),
+             ),
+       cashReview =
+           notificationRepository == null ||
+               cashReviewSource == null ||
+               cashReviewDelivery == null
+           ? null
+           : CashReviewPresenter(
+               notificationRepository,
+               cashReviewSource,
+               cashReviewDelivery,
                syncBlocked: () =>
                    syncRepository != null &&
                    (syncRepository.state.offline ||
@@ -132,7 +152,10 @@ class AppPresenters {
        funding = FundingPresenter(fundingRepository),
        budgets = BudgetPresenter(budgetRepository),
        categories = CategoryPresenter(categoryRepository) {
-    auth.beforeAccountDeletion = budgetAlerts?.forgetOwner;
+    auth.beforeAccountDeletion = (owner) async {
+      await budgetAlerts?.forgetOwner(owner);
+      await cashReview?.forgetOwner(owner);
+    };
     auth.beforeSessionEnd = () async {
       this.notificationNavigation.clear();
       budgetReview?.setAccount(null);
@@ -140,6 +163,7 @@ class AppPresenters {
       await Future.wait([
         if (billReminders != null) billReminders!.endSession(),
         if (budgetAlerts != null) budgetAlerts!.endSession(),
+        if (cashReview != null) cashReview!.endSession(),
       ]);
     };
     notifications?.onChanged = (invalidate) async {
@@ -147,6 +171,7 @@ class AppPresenters {
         if (billReminders != null)
           billReminders!.refresh(invalidate: invalidate),
         if (budgetAlerts != null) budgetAlerts!.refresh(),
+        if (cashReview != null) cashReview!.refresh(),
       ]);
     };
     _subscriptions.add(
@@ -163,6 +188,7 @@ class AppPresenters {
           budgetReview?.setAccount(state.account);
           unawaited(billReminders?.setAccount(state.account));
           unawaited(budgetAlerts?.setAccount(state.account));
+          unawaited(cashReview?.setAccount(state.account));
         }
         if (identical(_account, state.account)) return;
         final changedOwner = _account?.id != state.account?.id;
@@ -185,6 +211,7 @@ class AppPresenters {
             funding.invalidate();
             budgetReview?.invalidate();
             unawaited(budgetAlerts?.refresh());
+            unawaited(cashReview?.refresh());
           }
         }),
       );
@@ -194,6 +221,7 @@ class AppPresenters {
             funding.invalidate();
             budgetReview?.invalidate();
             unawaited(budgetAlerts?.refresh());
+            unawaited(cashReview?.refresh());
             unawaited(billReminders?.refresh());
             unawaited(history.reload());
             unawaited(overview.reload());
@@ -214,6 +242,7 @@ class AppPresenters {
         if (effect is DataChanged) {
           budgetReview?.invalidate();
           unawaited(budgetAlerts?.refresh());
+          unawaited(cashReview?.refresh());
           unawaited(history.reload());
           unawaited(overview.reload());
         }
@@ -241,6 +270,7 @@ class AppPresenters {
             funding.invalidate();
             budgetReview?.invalidate();
             unawaited(budgetAlerts?.refresh());
+            unawaited(cashReview?.refresh());
             unawaited(history.reload());
             unawaited(
               effect.month == null
@@ -282,5 +312,6 @@ class AppPresenters {
     notifications?.dispose();
     billReminders?.dispose();
     budgetAlerts?.dispose();
+    cashReview?.dispose();
   }
 }

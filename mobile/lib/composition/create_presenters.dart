@@ -1,3 +1,5 @@
+import '../data/api_cash_review_source.dart';
+import '../data/local_cash_review_delivery.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import '../data/local_notification_runtime.dart';
 import '../data/api_budget_review_repository.dart';
@@ -36,6 +38,12 @@ AppPresenters createPresenters() {
     csvSource: FileCSVSource(),
     recoveryRepository: ApiRecoveryRepository(api),
     notificationRepository: DeviceNotificationRepository(api.storage),
+    cashReviewSource: ApiCashReviewSource(api),
+    cashReviewDelivery: LocalCashReviewDelivery(
+      api.storage,
+      plugin: plugin,
+      initializeNotifications: runtime.initialize,
+    ),
     budgetAlertSource: ApiBudgetAlertSource(api),
     budgetAlertDelivery: LocalBudgetAlertDelivery(
       api.storage,

@@ -33,7 +33,15 @@ Reviews fetch fresh owner-scoped server data, without an offline-cache fallback.
 
 The shared native notification initializer handles both warm taps and cold-start launch details without permission prompts. Payloads contain only owner, month and opaque budget IDs; amounts/category names remain inside the app. Navigation waits for authentication, rejects another owner's target, and clears on session end. Tapping a notification does not change a budget or transaction. Physical Android/iOS tap journeys still need device acceptance.
 
-**Cash-review notification delivery remains planned.** Its preference is saved and labelled accordingly. Existing in-app budget alerts remain available.
+## Cash-review reminders
+
+Enable **Use notifications** and **Cash review reminders** to check a started funding setup on sign-in, resume, relevant record changes, successful synchronization and preference changes. **Check cash review** provides manual retry. Checks are skipped while offline or while transaction synchronization is busy or pending. No background polling, scheduled server jobs or remote push is added.
+
+The read-only `/notifications/cash-review` endpoint reuses funding availability to detect missing or stale inputs: changed cash activity, expired cash snapshots, changed obligations/goals and a funding plan that needs today's review. Accounts without a cash snapshot or funding plan are not reminded to complete onboarding. The response contains only owner, profile-local day, eligibility and a generic status; notification payloads contain only owner and destination.
+
+At most one attempt is made per account per local day on this installation. Secure device storage preserves the last attempted date through restarts, sign-outs and preference changes. Moving the profile timezone back to an earlier date does not allow an extra reminder. Attempts are recorded before native delivery; a crash or ambiguous OS failure may suppress that day's reminder. Account deletion clears its history. Reviewing funding, disabling reminders or ending the session cancels the displayed cash reminder independently of bills and budget alerts.
+
+Tapping a reminder opens Protected Funding and fetches the latest state, where existing missing-input and stale-reason explanations lead into cash reconciliation and plan review. Cold-start taps wait for authentication; another account's payload is ignored. No balances or financial amounts are shown in notifications. Delivery is best effort on Android/iOS and requires OS permission; the app must open or be used for a check to occur. Physical-device delivery remains to be verified.
 
 ## Preferences and permission
 

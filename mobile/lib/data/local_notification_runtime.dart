@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
-/// Both notification features share one native callback and cold-start check.
+/// All notification features share one native callback and cold-start check.
 class LocalNotificationRuntime {
   final FlutterLocalNotificationsPlugin plugin;
   final void Function(String?) onTap;

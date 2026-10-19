@@ -4,10 +4,12 @@ import '../../../core/presentation/presenter.dart';
 import '../../budgets/model/budget_review_repository.dart';
 
 class NotificationNavigationPresenter extends Presenter<BudgetReviewTarget?> {
+  final cashReview = CashReviewNavigationPresenter();
   Account? _account;
   BudgetReviewTarget? _pending;
   NotificationNavigationPresenter() : super(null);
   void open(String? payload) {
+    cashReview.open(payload);
     if (disposed || payload == null || payload.length > 100000) return;
     try {
       final data = jsonDecode(payload);
@@ -37,6 +39,7 @@ class NotificationNavigationPresenter extends Presenter<BudgetReviewTarget?> {
   }
 
   void setAccount(Account? account) {
+    cashReview.setAccount(account);
     if (_account?.id != account?.id) emit(null);
     _account = account;
     _publish();
@@ -47,6 +50,59 @@ class NotificationNavigationPresenter extends Presenter<BudgetReviewTarget?> {
     final target = _pending!;
     _pending = null;
     if (target.ownerId == _account!.id) emit(target);
+  }
+
+  void consume() {
+    if (state != null) emit(null);
+  }
+
+  @override
+  void dispose() {
+    cashReview.dispose();
+    super.dispose();
+  }
+
+  void clear() {
+    cashReview.clear();
+    _pending = null;
+    _account = null;
+    consume();
+  }
+}
+
+class CashReviewNavigationPresenter extends Presenter<String?> {
+  Account? _account;
+  String? _pending;
+  CashReviewNavigationPresenter() : super(null);
+  void open(String? payload) {
+    if (disposed || payload == null || payload.length > 1024) return;
+    try {
+      final data = jsonDecode(payload);
+      if (data is! Map ||
+          data['type'] != 'cash_review_v1' ||
+          data['owner'] is! String ||
+          (data['owner'] as String).isEmpty ||
+          (data['owner'] as String).length > 128) {
+        return;
+      }
+      _pending = data['owner'];
+      _publish();
+    } catch (_) {
+      /* Ignore unsupported payloads. */
+    }
+  }
+
+  void setAccount(Account? account) {
+    if (_account?.id != account?.id) consume();
+    _account = account;
+    _publish();
+  }
+
+  void _publish() {
+    if (_account == null || _pending == null) return;
+    final owner = _pending;
+    _pending = null;
+    if (owner == _account!.id) emit(owner);
   }
 
   void consume() {

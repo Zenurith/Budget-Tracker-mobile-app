@@ -9,7 +9,7 @@ from uuid import uuid4
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from .errors import DomainError, ErrorKind
-from .funding_state import cash_changed
+from .funding_state import cash_changed, load as load_funding
 from .finance import check_category, owned
 from .planning_commands import FinancialProfile, Schedule, Payment
 
@@ -281,7 +281,10 @@ def list_occurrences(start, end, user, db, plan=None):
 
 def overview(start, end, user, db):
     plan = load(user, db)
-    return {**public_plan(plan), 'occurrences': list_occurrences(start, end, user, db, plan)['items']}
+    funding_plan = load_funding(user, db).get('plan') or {}
+    return {**public_plan(plan),
+            'next_income_date': funding_plan.get('next_income_date'),
+            'occurrences': list_occurrences(start, end, user, db, plan)['items']}
 
 
 def resolve_occurrence(plan, id):

@@ -1,3 +1,4 @@
+import 'package:pocketwise/features/notifications/model/cash_review_repository.dart';
 import 'package:pocketwise/features/budgets/model/budget_review_repository.dart';
 import 'package:pocketwise/features/notifications/model/budget_alert_repository.dart';
 import 'package:pocketwise/features/funding/model/funding_repository.dart';
@@ -178,6 +179,8 @@ AppPresenters testPresenters(
   PlanningRepository? planningRepository,
   NotificationRepository? notificationRepository,
   BudgetReviewRepository? budgetReviewRepository,
+  CashReviewSource? cashReviewSource,
+  CashReviewDelivery? cashReviewDelivery,
   BudgetAlertSource? budgetAlertSource,
   BudgetAlertDelivery? budgetAlertDelivery,
   BillReminderSource? billReminderSource,
@@ -193,6 +196,8 @@ AppPresenters testPresenters(
   fundingRepository: FakeFundingRepository(),
   notificationRepository: notificationRepository,
   budgetReviewRepository: budgetReviewRepository,
+  cashReviewSource: cashReviewSource,
+  cashReviewDelivery: cashReviewDelivery,
   budgetAlertSource: budgetAlertSource,
   budgetAlertDelivery: budgetAlertDelivery,
   billReminderSource: billReminderSource,
