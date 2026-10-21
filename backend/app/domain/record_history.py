@@ -41,7 +41,9 @@ def undo(id, user, db):
             raise DomainError(ErrorKind.CONFLICT, 'Correct the purchase or payment link before undoing this transaction.')
         if event['before']:
             previous = event['before']
-            finance.check_category(previous['category_id'], previous['type'], user, tx)
+            for part in finance.portions(previous):
+                finance.check_category(part['category_id'], previous['type'], user, tx)
+            finance.check_account(previous.get('account_id'), user, tx, previous['date'], allow_archived=True)
             tx.put('transactions', previous)
         else:
             tx.delete('transactions', id=event['transaction_id'], user_id=user['id'])

@@ -33,14 +33,29 @@ class FinanceCategory {
       custom = j['user_id'] != null;
 }
 
+class EntrySplit {
+  final String categoryId;
+  final int amount;
+  const EntrySplit({required this.categoryId, required this.amount});
+  Json toJson() => {'category_id': categoryId, 'amount': amount};
+}
+
 class Entry {
+  final List<EntrySplit> splits;
+  final String? accountId;
   final String? version;
   final String? commitmentOccurrenceId, wishlistPurchaseId;
   final String id, type, categoryId, note, paymentMethod, source;
   final int amount;
   final DateTime date;
   Entry.fromJson(Json j)
-    : version = j['version'],
+    : splits = List.unmodifiable(
+        (j['splits'] as List? ?? []).map(
+          (s) => EntrySplit(categoryId: s['category_id'], amount: s['amount']),
+        ),
+      ),
+      accountId = j['account_id'],
+      version = j['version'],
       commitmentOccurrenceId = j['commitment_occurrence_id'],
       wishlistPurchaseId = j['wishlist_purchase_id'],
       id = j['id'] ?? '',

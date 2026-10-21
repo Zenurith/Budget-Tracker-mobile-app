@@ -31,11 +31,22 @@ class UpdateProfile:
 
 
 @dataclass(frozen=True, kw_only=True)
+class Split:
+    category_id: str
+    amount: int
+
+
+@dataclass(frozen=True, kw_only=True)
 class Transaction:
     amount: int
     type: Literal['income', 'expense']
     category_id: str
     date: date
+    account_id: str | None = None
+    splits: tuple[Split, ...] = ()
+
+    def __post_init__(self):
+        object.__setattr__(self, 'splits', tuple(s if isinstance(s, Split) else Split(**s) for s in self.splits))
     note: str = ''
     payment_method: str = 'Cash'
     source: Literal['manual', 'nlp'] = 'manual'

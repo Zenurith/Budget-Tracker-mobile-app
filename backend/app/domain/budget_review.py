@@ -19,7 +19,8 @@ def review(period, user, db, *, now=None):
         totals = defaultdict(int)
         for entry in tx.find('transactions', user_id=user['id']):
             if entry['type'] == 'expense' and entry['date'].startswith(period):
-                totals[entry['category_id']] += entry['amount']
+                for part in finance.portions(entry):
+                    totals[part['category_id']] += part['amount']
         names = {c['id']: c['name'] for c in finance.categories(user, tx)}
         items = []
         for budget in finance.list_budgets(period, user, tx)['items']:

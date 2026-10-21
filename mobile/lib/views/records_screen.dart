@@ -8,12 +8,14 @@ class RecordsScreen extends StatefulWidget {
   final String currency;
   final int initialTab;
   final Future<void> Function()? reconcile;
+  final Future<void> Function(DateTime start, DateTime end)? reviewTransactions;
   const RecordsScreen({
     super.key,
     required this.presenter,
     required this.currency,
     this.initialTab = 0,
     this.reconcile,
+    this.reviewTransactions,
   });
   @override
   State<RecordsScreen> createState() => _RecordsScreenState();
@@ -100,10 +102,45 @@ class _RecordsScreenState extends State<RecordsScreen> {
         if (opening != null)
           for (final account in opening['accounts'] as List)
             Text('${account['name']}: ${amount(account['amount'])}'),
-        if (recorded != null)
-          Text(
-            'Recorded balance through ${recorded['as_of']}: ${amount(recorded['balance'])}',
+        if (recorded != null) ...[
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'How your recorded balance adds up',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  Text(
+                    'Opening balances: ${amount(recorded['opening_total'])}',
+                  ),
+                  Text(
+                    'Net recorded activity: ${amount(recorded['movement'])}',
+                  ),
+                  Text(
+                    'Recorded balance through ${recorded['as_of']}: ${amount(recorded['balance'])}',
+                  ),
+                  const Text(
+                    'Net activity is recorded income minus expenses. This is not a verified bank balance.',
+                  ),
+                  if (widget.reviewTransactions != null && opening != null)
+                    TextButton.icon(
+                      onPressed: state.busy || state.error != null
+                          ? null
+                          : () => widget.reviewTransactions!(
+                              DateTime.parse(opening['as_of']),
+                              DateTime.parse(recorded['as_of']),
+                            ),
+                      icon: const Icon(Icons.receipt_long_outlined),
+                      label: const Text('Review balance transactions'),
+                    ),
+                ],
+              ),
+            ),
           ),
+        ],
         Wrap(
           spacing: 12,
           children: [
@@ -167,9 +204,17 @@ class _RecordsScreenState extends State<RecordsScreen> {
                     Text(
                       'Observed cash: ${amount(row['after']['liquid_total'])}',
                     ),
-                    if (row['recorded'] != null)
+                    if (row['recorded'] != null) ...[
                       Text(
-                        'Recorded: ${amount(row['recorded']['balance'])} · Difference: ${amount(row['difference'])}',
+                        'Recorded at this check: ${amount(row['recorded']['balance'])}',
+                      ),
+                      ReconciliationDifference(
+                        difference: row['difference'] as int,
+                        currency: widget.currency,
+                      ),
+                    ] else
+                      const Text(
+                        'Comparison unavailable. Set opening balances for the same named accounts, then reconcile again.',
                       ),
                     Text(row['comparison_note'] ?? ''),
                     for (final a in row['after']['accounts'] as List)
@@ -587,5 +632,45 @@ class _OpeningEditorState extends State<OpeningEditor> {
         ),
       ],
     ),
+  );
+}
+
+class ReconciliationDifference extends StatelessWidget {
+  final int difference;
+  final String currency;
+  const ReconciliationDifference({
+    super.key,
+    required this.difference,
+    required this.currency,
+  });
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      const SizedBox(height: 8),
+      Text(
+        difference == 0
+            ? 'Cash matched the recorded balance at this check'
+            : 'Observed cash was ${money(difference.abs(), currency)} ${difference > 0 ? 'higher' : 'lower'} than recorded',
+        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+          color: difference == 0 ? null : Theme.of(context).colorScheme.error,
+        ),
+      ),
+      if (difference != 0) ...[
+        const SizedBox(height: 8),
+        const Text('What to check'),
+        Text(
+          difference < 0
+              ? 'Look for missing expenses, duplicate income or an opening balance that was too high.'
+              : 'Look for missing income, duplicate expenses or an opening balance that was too low.',
+        ),
+        const Text(
+          'Check that the same accounts are included and that same-day transactions had already happened when you checked cash.',
+        ),
+        const Text(
+          'Correct any records you find, then reconcile again. This difference does not identify a specific transaction or move money.',
+        ),
+      ],
+    ],
   );
 }

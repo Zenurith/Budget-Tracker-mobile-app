@@ -1,3 +1,5 @@
+from .debt_planner_routes import build_debt_planner_router
+from .money_account_routes import build_money_account_router
 from datetime import date
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -33,6 +35,9 @@ def build_router(auth, mode, mailer):
             raise HTTPException(401, 'Please sign in to continue.')
         return auth.user_for_token(credentials.credentials, db)
 
+
+    router.include_router(build_money_account_router(current, repo))
+    router.include_router(build_debt_planner_router(current, repo))
 
     @router.get('/health')
     def health():

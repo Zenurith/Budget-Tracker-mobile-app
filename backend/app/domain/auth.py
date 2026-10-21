@@ -108,11 +108,11 @@ class AuthService:
             'planning': [{k: v for k, v in p.items() if k != 'operations'}
                          for p in db.find('planning', user_id=user['id'])],
             **{collection: db.find(collection, user_id=user['id'])
-               for collection in ('transactions', 'budgets', 'opening_balances', 'balance_history', 'transaction_history', 'csv_imports')},
+               for collection in ('transactions', 'budgets', 'opening_balances', 'balance_history', 'transaction_history', 'csv_imports', 'money_accounts', 'account_transfers', 'account_reconciliations', 'account_changes', 'debt_scenarios')},
         }
 
     def delete_account(self, user=None, db: DocumentRepository = None):
         with db.atomic(user['id']) as tx:
-            for collection in ('transactions', 'budgets', 'categories', 'sessions', 'planning', 'calculation_snapshots', 'funding', 'funding_events', 'transaction_operations', 'access_sessions', 'password_resets', 'opening_balances', 'balance_history', 'transaction_history', 'csv_imports'):
+            for collection in ('transactions', 'budgets', 'categories', 'sessions', 'planning', 'calculation_snapshots', 'funding', 'funding_events', 'transaction_operations', 'access_sessions', 'password_resets', 'opening_balances', 'balance_history', 'transaction_history', 'csv_imports', 'money_accounts', 'account_transfers', 'account_reconciliations', 'account_changes', 'debt_scenarios'):
                 tx.delete(collection, user_id=user['id'])
             tx.delete('users', id=user['id'])

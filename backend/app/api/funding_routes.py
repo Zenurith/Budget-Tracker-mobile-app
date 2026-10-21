@@ -1,3 +1,5 @@
+from .forecast_schemas import CashForecast
+from ..domain import cash_forecast
 from fastapi import APIRouter, Depends, Query
 from . import funding_schemas as fs
 from ..domain import funding, funding_commands as fc
@@ -5,6 +7,10 @@ from ..domain import funding, funding_commands as fc
 
 def build_funding_router(current, repo):
     router = APIRouter()
+
+    @router.post('/funding/forecast')
+    def forecast(data: CashForecast, user=Depends(current), db=Depends(repo)):
+        return cash_forecast.calculate(data.model_dump(), user, db)
 
     @router.get('/notifications/cash-review')
     def cash_review(user=Depends(current), db=Depends(repo)):

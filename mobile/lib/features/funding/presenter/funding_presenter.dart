@@ -27,11 +27,32 @@ class FundingState {
 
 class FundingPresenter extends Presenter<FundingState> {
   final FundingRepository _repository;
+  final Future<Json> Function(Json)? chatRequest;
   Account? _account;
   int _request = 0, _owner = 0;
   String? _fingerprint;
   Json? _pending;
-  FundingPresenter(this._repository) : super(FundingState());
+  FundingPresenter(this._repository, {this.chatRequest})
+    : super(FundingState());
+  Future<Json> askGemini(
+    String message, {
+    List<Json> history = const [],
+  }) async {
+    if (_account == null || chatRequest == null || disposed) {
+      throw StateError('Chat is unavailable.');
+    }
+    final owner = _owner;
+    final request = _request;
+    if (state.stale) {
+      throw StateError('Refresh your funding before asking Gemini.');
+    }
+    final result = await chatRequest!({'message': message, 'history': history});
+    if (disposed || owner != _owner || request != _request || state.stale) {
+      throw StateError('Financial data changed. Please ask again.');
+    }
+    return result;
+  }
+
   void setAccount(Account? account) {
     _owner++;
     _request++;

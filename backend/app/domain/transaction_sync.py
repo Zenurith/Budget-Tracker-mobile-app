@@ -28,7 +28,12 @@ def apply(data: Operation, user, db):
             or (deleting and data.transaction is not None)
             or (not deleting and data.transaction is None)):
         raise DomainError(ErrorKind.INVALID_INPUT, 'Include the reviewed transaction version for edits and deletions.')
-    digest = sha256(json.dumps(asdict(data), sort_keys=True, default=str).encode()).hexdigest()
+    payload = asdict(data)
+    if payload.get('transaction') and payload['transaction'].get('account_id') is None:
+        payload['transaction'].pop('account_id', None)
+    if payload.get('transaction') and not payload['transaction'].get('splits'):
+        payload['transaction'].pop('splits', None)
+    digest = sha256(json.dumps(payload, sort_keys=True, default=str).encode()).hexdigest()
     key = str(uuid5(NAMESPACE_URL, f"pocketwise:transaction:{user['id']}:{data.operation_id}"))
     with db.atomic(user['id']) as tx:
         if not tx.get('users', id=user['id']):

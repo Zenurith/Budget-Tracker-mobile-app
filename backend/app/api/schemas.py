@@ -38,11 +38,19 @@ class UpdateProfile(BaseModel):
         return value.strip()
 
 
+class TransactionSplit(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    category_id: str
+    amount: int = Field(gt=0, le=100_000_000_000, strict=True)
+
+
 class Transaction(BaseModel):
     amount: int = Field(gt=0, le=100_000_000_000, strict=True)
     type: Literal['income', 'expense']
     category_id: str
     date: date
+    account_id: str | None = None
+    splits: list[TransactionSplit] = Field(default_factory=list, max_length=20)
     note: str = Field(default='', max_length=500)
     payment_method: str = Field(default='Cash', max_length=40)
     source: Literal['manual', 'nlp'] = 'manual'

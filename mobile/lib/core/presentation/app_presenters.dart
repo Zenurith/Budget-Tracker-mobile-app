@@ -1,3 +1,10 @@
+import '../../features/debt_planner/model/scenario_repository.dart';
+import '../../features/debt_planner/presenter/scenario_presenter.dart';
+import '../../models/finance.dart';
+import '../../features/forecast/model/forecast_repository.dart';
+import '../../features/forecast/presenter/forecast_presenter.dart';
+import '../../features/accounts/model/account_repository.dart';
+import '../../features/accounts/presenter/account_presenter.dart';
 import '../../features/notifications/model/cash_review_repository.dart';
 import '../../features/notifications/presenter/cash_review_presenter.dart';
 import '../../features/notifications/presenter/notification_navigation_presenter.dart';
@@ -37,6 +44,9 @@ class AppPresenters {
   final NotificationNavigationPresenter notificationNavigation;
   final Future<void> Function()? initializeNotifications;
   final BudgetReviewPresenter? budgetReview;
+  final ScenarioPresenter? debtScenarios;
+  final ForecastPresenter? forecast;
+  final AccountPresenter? accounts;
   final AuthPresenter auth;
   final OverviewPresenter overview;
   final TransactionPresenter transactions;
@@ -60,6 +70,10 @@ class AppPresenters {
     NotificationNavigationPresenter? notificationNavigation,
     this.initializeNotifications,
     BudgetReviewRepository? budgetReviewRepository,
+    ScenarioRepository? scenarioRepository,
+    ForecastRepository? forecastRepository,
+    Future<Json> Function(Json)? wishlistChat,
+    AccountRepository? accountRepository,
     required AuthRepository authRepository,
     required OverviewRepository overviewRepository,
     required TransactionRepository transactionRepository,
@@ -143,13 +157,51 @@ class AppPresenters {
            ? null
            : RecoveryPresenter(recoveryRepository),
        sync = syncRepository == null ? null : SyncPresenter(syncRepository),
+       debtScenarios = scenarioRepository == null
+           ? null
+           : ScenarioPresenter(scenarioRepository),
+       forecast = forecastRepository == null
+           ? null
+           : ForecastPresenter(
+               forecastRepository,
+               syncBlocked: () =>
+                   syncRepository != null &&
+                   (syncRepository.state.offline ||
+                       syncRepository.state.busy ||
+                       syncRepository.state.operations.isNotEmpty),
+             ),
+       accounts = accountRepository == null
+           ? null
+           : AccountPresenter(
+               accountRepository,
+               syncBlocked: () =>
+                   syncRepository != null &&
+                   (syncRepository.state.offline ||
+                       syncRepository.state.busy ||
+                       syncRepository.state.operations.isNotEmpty),
+             ),
        auth = AuthPresenter(authRepository),
        overview = OverviewPresenter(overviewRepository, now: now),
        transactions = TransactionPresenter(transactionRepository),
        history = HistoryPresenter(transactionRepository, now: now),
        planning = PlanningPresenter(planningRepository, now: now),
        helper = HelperPresenter(helperRepository),
-       funding = FundingPresenter(fundingRepository),
+       funding = FundingPresenter(
+         fundingRepository,
+         chatRequest: wishlistChat == null
+             ? null
+             : (message) {
+                 if (syncRepository != null &&
+                     (syncRepository.state.offline ||
+                         syncRepository.state.busy ||
+                         syncRepository.state.operations.isNotEmpty)) {
+                   throw StateError(
+                     'Sync pending transactions before asking Gemini.',
+                   );
+                 }
+                 return wishlistChat(message);
+               },
+       ),
        budgets = BudgetPresenter(budgetRepository),
        categories = CategoryPresenter(categoryRepository) {
     auth.beforeAccountDeletion = (owner) async {
@@ -158,6 +210,8 @@ class AppPresenters {
     };
     auth.beforeSessionEnd = () async {
       this.notificationNavigation.clear();
+      forecast?.setAccount(null);
+      debtScenarios?.setAccount(null);
       budgetReview?.setAccount(null);
       // Start both invalidations before awaiting either device queue.
       await Future.wait([
@@ -196,6 +250,9 @@ class AppPresenters {
         unawaited(overview.setAccount(state.account));
         if (changedOwner) {
           records?.setAccount(state.account);
+          accounts?.setAccount(state.account);
+          forecast?.setAccount(state.account);
+          debtScenarios?.setAccount(state.account);
           if (state.account != null) unawaited(sync?.synchronize());
           helper.setAccount(state.account);
           funding.setAccount(state.account);
@@ -204,11 +261,19 @@ class AppPresenters {
         }
       }),
     );
+    _subscriptions.add(
+      transactions.effects.listen((effect) {
+        if (effect is DataChanged) accounts?.invalidate();
+      }),
+    );
     if (sync != null) {
       _subscriptions.add(
         sync!.states.listen((state) {
           if (state.operations.isNotEmpty || state.offline) {
+            accounts?.invalidate();
             funding.invalidate();
+            forecast?.invalidate();
+
             budgetReview?.invalidate();
             unawaited(budgetAlerts?.refresh());
             unawaited(cashReview?.refresh());
@@ -219,6 +284,8 @@ class AppPresenters {
         sync!.effects.listen((effect) {
           if (effect is DataChanged) {
             funding.invalidate();
+            forecast?.invalidate();
+
             budgetReview?.invalidate();
             unawaited(budgetAlerts?.refresh());
             unawaited(cashReview?.refresh());
@@ -234,12 +301,14 @@ class AppPresenters {
         if (!state.busy && !state.saving && state.data.isNotEmpty) {
           helper.invalidate(state.revision);
           funding.invalidate(planningRevision: state.revision);
+          forecast?.invalidate();
         }
       }),
     );
     _subscriptions.add(
       funding.effects.listen((effect) {
         if (effect is DataChanged) {
+          forecast?.invalidate();
           budgetReview?.invalidate();
           unawaited(budgetAlerts?.refresh());
           unawaited(cashReview?.refresh());
@@ -258,6 +327,7 @@ class AppPresenters {
       }),
     );
     for (final effects in [
+      if (accounts != null) accounts!.effects,
       transactions.effects,
       budgets.effects,
       categories.effects,
@@ -268,6 +338,8 @@ class AppPresenters {
         effects.listen((effect) {
           if (effect is DataChanged) {
             funding.invalidate();
+            forecast?.invalidate();
+
             budgetReview?.invalidate();
             unawaited(budgetAlerts?.refresh());
             unawaited(cashReview?.refresh());
@@ -297,6 +369,9 @@ class AppPresenters {
     }
     notificationNavigation.dispose();
     budgetReview?.dispose();
+    forecast?.dispose();
+    debtScenarios?.dispose();
+    accounts?.dispose();
     auth.dispose();
     overview.dispose();
     transactions.dispose();

@@ -11,6 +11,7 @@ from .nlp import parse
 from .ports import DocumentRepository
 from .funding_state import cash_changed
 from .record_history import remember
+from .money_accounts import check as check_account
 
 DEFAULTS = [('food', 'Food', 'expense', 'restaurant', '#E3A25F'), ('transport', 'Transport', 'expense', 'directions_car', '#6D9DC5'), ('shopping', 'Shopping', 'expense', 'shopping_bag', '#AC8FC0'), ('bills', 'Bills', 'expense', 'receipt_long', '#D88679'), ('entertainment', 'Entertainment', 'expense', 'movie', '#7DB7A5'), ('health', 'Health', 'expense', 'favorite', '#D48FA6'), ('other-expense', 'Other expenses', 'expense', 'category', '#9AA6A0'), ('salary', 'Salary', 'income', 'work', '#4D8B70'), ('other-income', 'Other income', 'income', 'payments', '#79A897')]
 CATEGORIES = [dict(id=i, name=n, type=t, icon=ic, color=c, user_id=None) for i, n, t, ic, c in DEFAULTS]
@@ -28,6 +29,34 @@ def owned(collection, id, user, db: DocumentRepository):
         raise DomainError(ErrorKind.NOT_FOUND, 'Item not found.')
     return doc
 
+def portions(doc):
+    return doc.get('splits') or [{'category_id': doc['category_id'], 'amount': doc['amount']}]
+
+
+def validate_splits(data, user, db):
+    if not data.splits:
+        return
+    if not 2 <= len(data.splits) <= 20 or sum(s.amount for s in data.splits) != data.amount:
+        raise DomainError(ErrorKind.INVALID_INPUT, 'Use 2–20 splits whose amounts equal the transaction total.')
+    if data.category_id != data.splits[0].category_id or len({s.category_id for s in data.splits}) != len(data.splits):
+        raise DomainError(ErrorKind.INVALID_INPUT, 'Choose distinct split categories; the first must match the primary category.')
+    for split in data.splits:
+        if type(split.amount) is not int or split.amount <= 0:
+            raise DomainError(ErrorKind.INVALID_INPUT, 'Every split needs a positive amount.')
+        check_category(split.category_id, data.type, user, db)
+
+
+def category_in_use(id, user, db):
+    return any(any(p['category_id'] == id for p in portions(d)) for d in db.find('transactions', user_id=user['id']))
+
+
+def transaction_fields(data):
+    values = asdict(data)
+    values['date'] = data.date.isoformat()
+    values['splits'] = [asdict(part) for part in data.splits]
+    return values
+
+
 def transaction_view(doc):
     version = hashlib.sha256(json.dumps(doc, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
     return dict(doc, version=version)
@@ -44,7 +73,7 @@ def edit_category(id: str, data: Category, user=None, db: DocumentRepository = N
         if data.type != 'expense' and any(s['category_id'] == id for kind in ('debts', 'commitments') for s in plan.get(kind, {}).values()):
             raise DomainError(ErrorKind.CONFLICT, 'This category is used by an obligation; keep its expense type.')
         old = owned('categories', id, user, db)
-        if old['type'] != data.type and (db.find('transactions', user_id=user['id'], category_id=id) or db.find('budgets', user_id=user['id'], category_id=id)):
+        if old['type'] != data.type and (category_in_use(id, user, db) or db.find('budgets', user_id=user['id'], category_id=id)):
             raise DomainError(ErrorKind.CONFLICT, 'The type of a category in use cannot be changed.')
         return db.put('categories', dict(asdict(data), id=id, user_id=user['id']))
 
@@ -54,7 +83,7 @@ def delete_category(id: str, user=None, db: DocumentRepository = None):
         if any(s['category_id'] == id for kind in ('debts', 'commitments') for s in plan.get(kind, {}).values()):
             raise DomainError(ErrorKind.CONFLICT, 'This category is used by a debt or commitment schedule.')
         owned('categories', id, user, db)
-        if db.find('transactions', user_id=user['id'], category_id=id) or db.find('budgets', user_id=user['id'], category_id=id):
+        if category_in_use(id, user, db) or db.find('budgets', user_id=user['id'], category_id=id):
             raise DomainError(ErrorKind.CONFLICT, 'Move transactions and remove budgets using this category first.')
         db.delete('categories', id=id, user_id=user['id'])
 
@@ -66,14 +95,16 @@ def list_transactions(start: date | None=None, end: date | None=None, category_i
         raise DomainError(ErrorKind.INVALID_INPUT, 'Enter a valid minimum and maximum amount.')
     names = {c['id']: c['name'].lower() for c in categories(user, db)}
     docs = db.find('transactions', user_id=user['id'])
-    docs = [d for d in docs if (not start or d['date'] >= start.isoformat()) and (not end or d['date'] <= end.isoformat()) and (not category_id or d['category_id'] == category_id) and (not type or d['type'] == type) and (q.lower() in d['note'].lower() or q.lower() in names.get(d['category_id'], '')) and (min_amount is None or d['amount'] >= min_amount) and (max_amount is None or d['amount'] <= max_amount)]
+    docs = [d for d in docs if (not start or d['date'] >= start.isoformat()) and (not end or d['date'] <= end.isoformat()) and (not category_id or any(p['category_id'] == category_id for p in portions(d))) and (not type or d['type'] == type) and (q.lower() in d['note'].lower() or any(q.lower() in names.get(p['category_id'], '') for p in portions(d))) and (min_amount is None or d['amount'] >= min_amount) and (max_amount is None or d['amount'] <= max_amount)]
     docs.sort(key=lambda d: (d['date'], d['created_at'], d['id']), reverse=True)
     return {'items': [transaction_view(d) for d in docs[(page - 1) * page_size:page * page_size]], 'total': len(docs), 'page': page, 'page_size': page_size}
 
 def add_transaction(data: Transaction, user=None, db: DocumentRepository = None):
     with db.atomic(user['id']) as db:
         check_category(data.category_id, data.type, user, db)
-        record = db.put('transactions', dict(dict(asdict(data), date=data.date.isoformat()), id=str(uuid4()), user_id=user['id'], created_at=datetime.now(timezone.utc).isoformat()))
+        validate_splits(data, user, db)
+        check_account(data.account_id, user, db, data.date.isoformat())
+        record = db.put('transactions', dict(transaction_fields(data), id=str(uuid4()), user_id=user['id'], created_at=datetime.now(timezone.utc).isoformat()))
         remember(None, record, user, db)
         cash_changed(user, db)
         return record
@@ -86,7 +117,9 @@ def edit_transaction(id: str, data: Transaction, user=None, db: DocumentReposito
             raise DomainError(ErrorKind.CONFLICT, 'Unlink this payment from its obligation before editing or deleting the expense.')
         old = owned('transactions', id, user, db)
         check_category(data.category_id, data.type, user, db)
-        record = db.put('transactions', dict(old, **dict(asdict(data), date=data.date.isoformat())))
+        validate_splits(data, user, db)
+        check_account(data.account_id, user, db, data.date.isoformat(), allow_archived=data.account_id == old.get('account_id'))
+        record = db.put('transactions', dict(old, **transaction_fields(data)))
         remember(old, record, user, db)
         cash_changed(user, db)
         return record
@@ -106,7 +139,7 @@ def list_budgets(period: str=None, user=None, db: DocumentRepository = None):
     transactions = [d for d in db.find('transactions', user_id=user['id']) if d['date'].startswith(period) and d['type'] == 'expense']
     items = []
     for budget in db.find('budgets', user_id=user['id'], period=period):
-        spent = sum((d['amount'] for d in transactions if not budget['category_id'] or d['category_id'] == budget['category_id']))
+        spent = sum(p['amount'] for d in transactions for p in portions(d) if not budget['category_id'] or p['category_id'] == budget['category_id'])
         items.append(dict(budget, spent=spent, remaining=budget['limit_amount'] - spent))
     return {'items': items}
 
@@ -129,15 +162,26 @@ def summary(month: str=None, user=None, db: DocumentRepository = None):
     daily = defaultdict(int)
     for d in monthly:
         if d['type'] == 'expense':
-            by_category[d['category_id']] += d['amount']
+            for part in portions(d):
+                by_category[part['category_id']] += part['amount']
             daily[d['date']] += d['amount']
+    from .planning import load as load_plan, today_for
+    current = today_for(load_plan(user, db)).strftime('%Y-%m')
     trend = []
     year, number = map(int, month.split('-'))
     for offset in range(5, -1, -1):
         y, m = divmod(year * 12 + number - 1 - offset, 12)
         period = f'{y:04d}-{m + 1:02d}'
         group = [d for d in docs if d['date'].startswith(period)]
-        trend.append({'month': period, 'income': sum((d['amount'] for d in group if d['type'] == 'income')), 'expense': sum((d['amount'] for d in group if d['type'] == 'expense'))})
+        categories = defaultdict(int)
+        for entry in group:
+            if entry['type'] == 'expense':
+                for part in portions(entry):
+                    categories[part['category_id']] += part['amount']
+        trend.append({'category_totals': dict(categories), 'record_count': len(group),
+                      'recorded_days': len({d['date'] for d in group}),
+                      'status': 'ended' if period < current else 'in_progress' if period == current else 'future',
+                      'month': period, 'income': sum((d['amount'] for d in group if d['type'] == 'income')), 'expense': sum((d['amount'] for d in group if d['type'] == 'expense'))})
     today = date.today()
     current = today.strftime('%Y-%m')
     review = {
@@ -157,7 +201,7 @@ def summary(month: str=None, user=None, db: DocumentRepository = None):
     y, m = map(int, month.split('-'))
     recorded = expected(date(y, m, monthrange(y, m)[1]), user, db)
     from .dashboard import summary as dashboard_summary
-    return {'dashboard': dashboard_summary(user, db), 'recorded_balance': recorded, 'month': month, 'income': income, 'expenses': expense, 'balance': recorded['balance'] if recorded else sum((d['amount'] * (1 if d['type'] == 'income' else -1) for d in docs if d['date'][:7] <= month)), 'net': income - expense, 'category_breakdown': dict(by_category), 'daily_expenses': dict(sorted(daily.items())), 'trend': trend, 'review': review}
+    return {'money_accounts': [{'id': a['id'], 'name': a['name'], 'archived': a.get('archived', False)} for a in db.find('money_accounts', user_id=user['id'])], 'dashboard': dashboard_summary(user, db), 'recorded_balance': recorded, 'month': month, 'income': income, 'expenses': expense, 'balance': recorded['balance'] if recorded else sum((d['amount'] * (1 if d['type'] == 'income' else -1) for d in docs if d['date'][:7] <= month)), 'net': income - expense, 'category_breakdown': dict(by_category), 'daily_expenses': dict(sorted(daily.items())), 'trend': trend, 'review': review}
 
 def parse_entry(data: ParseRequest, user=None, db: DocumentRepository = None):
     return parse(data.text, data.reference_date, categories(user, db))

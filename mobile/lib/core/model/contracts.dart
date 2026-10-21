@@ -57,11 +57,15 @@ class MonthlySnapshot {
 }
 
 class EntryDraft {
+  final List<EntrySplit> splits;
+  final String? accountId;
   final String? expectedVersion;
   final int amount;
   final String type, categoryId, note, paymentMethod, source;
   final DateTime date;
   const EntryDraft({
+    this.splits = const [],
+    this.accountId,
     this.expectedVersion,
     required this.amount,
     required this.type,

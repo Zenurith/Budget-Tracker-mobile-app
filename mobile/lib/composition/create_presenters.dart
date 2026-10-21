@@ -1,3 +1,6 @@
+import '../data/api_scenario_repository.dart';
+import '../data/api_forecast_repository.dart';
+import '../data/api_account_repository.dart';
 import '../data/api_cash_review_source.dart';
 import '../data/local_cash_review_delivery.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -33,6 +36,8 @@ AppPresenters createPresenters() {
     notificationNavigation: navigation,
     initializeNotifications: runtime.initialize,
     budgetReviewRepository: ApiBudgetReviewRepository(api),
+    forecastRepository: ApiForecastRepository(api),
+    accountRepository: ApiAccountRepository(api),
     authRepository: ApiAuthRepository(api, offline: offline),
     recordsRepository: ApiRecordsRepository(api),
     csvSource: FileCSVSource(),
@@ -62,8 +67,11 @@ AppPresenters createPresenters() {
     budgetRepository: finance,
     categoryRepository: finance,
     planningRepository: ApiPlanningRepository(api),
+    scenarioRepository: ApiScenarioRepository(api),
     helperRepository: ApiHelperRepository(api),
     fundingRepository: ApiFundingRepository(api),
+    wishlistChat: (message) =>
+        api.request('POST', '/wishlist/chat', body: message),
     exportDestination: FileExportDestination(),
   );
 }

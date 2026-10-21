@@ -1,3 +1,7 @@
+import 'debt_planner_screen.dart';
+import 'cash_forecast_screen.dart';
+import 'accounts_screen.dart';
+import 'spending_trends_panel.dart';
 import 'dart:async';
 import '../features/budgets/model/budget_review_repository.dart';
 import 'budget_review_panel.dart';
@@ -128,6 +132,19 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     });
     unawaited(c.showMonth(DateTime.parse('${target.period}-01')));
     widget.presenters.budgetReview!.open(target);
+  }
+
+  Future<void> reviewBalanceTransactions(DateTime start, DateTime end) async {
+    if (!mounted) return;
+    Navigator.of(context).popUntil((route) => route.isFirst);
+    searchField.clear();
+    setState(() {
+      page = 1;
+      search = '';
+      filter = 'all';
+      categoryFilter = null;
+    });
+    await widget.presenters.history.apply(EntryFilter(start: start, end: end));
   }
 
   Future<void> reviewBudgetTransactions(Json budget) async {
@@ -945,9 +962,32 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   ),
                   const SizedBox(height: 5),
                   Text(
-                    '${category.name} · ${DateFormat('MMM d').format(entry.date)}',
+                    '${entry.splits.isEmpty ? category.name : '${entry.splits.length} categories'} · ${DateFormat('MMM d').format(entry.date)}',
                     style: const TextStyle(fontSize: 11, color: mutedInk),
                   ),
+                  if (entry.splits.isNotEmpty)
+                    Text(
+                      entry.splits
+                          .map(
+                            (part) =>
+                                '${c.category(part.categoryId).name}: ${money(part.amount, c.currency)}',
+                          )
+                          .join(' · '),
+                      style: const TextStyle(fontSize: 11, color: mutedInk),
+                    ),
+                  if (page == 1)
+                    Text(
+                      entry.accountId == null
+                          ? 'Unassigned account'
+                          : ((c.summary['money_accounts'] as List? ?? [])
+                                        .where(
+                                          (a) => a['id'] == entry.accountId,
+                                        )
+                                        .firstOrNull?['name']
+                                    as String? ??
+                                'Assigned account'),
+                      style: const TextStyle(fontSize: 11, color: mutedInk),
+                    ),
                   if (largeText)
                     Text(
                       '${entry.type == 'income' ? '+' : '−'}${money(entry.amount, c.currency)}',
@@ -976,6 +1016,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 onSelected: (value) async {
                   if (value == 'edit') {
                     showEntryEditor(context, widget.presenters, entry: entry);
+                  } else if (value == 'duplicate') {
+                    showEntryEditor(
+                      context,
+                      widget.presenters,
+                      entry: entry,
+                      duplicate: true,
+                    );
                   } else if (await confirm(
                     'Delete transaction?',
                     'This removes this transaction from your reports and budgets.',
@@ -997,6 +1044,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 },
                 itemBuilder: (_) => const [
                   PopupMenuItem(value: 'edit', child: Text('Edit')),
+                  PopupMenuItem(value: 'duplicate', child: Text('Duplicate')),
                   PopupMenuItem(value: 'delete', child: Text('Delete')),
                 ],
               ),
@@ -1503,7 +1551,44 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Widget reports() => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
+      OutlinedButton.icon(
+        onPressed: () => Navigator.push(
+          context,
+          MaterialPageRoute<void>(
+            builder: (_) => DebtPlannerScreen(
+              currency: c.currency,
+              presenter: widget.presenters.debtScenarios,
+            ),
+          ),
+        ),
+        icon: const Icon(Icons.calculate_outlined),
+        label: const Text('Debt repayment planner'),
+      ),
+      if (widget.presenters.forecast != null)
+        OutlinedButton.icon(
+          onPressed: () => Navigator.push(
+            context,
+            MaterialPageRoute<void>(
+              builder: (_) => CashForecastScreen(
+                presenter: widget.presenters.forecast!,
+                currency: c.currency,
+              ),
+            ),
+          ),
+          icon: const Icon(Icons.timeline),
+          label: const Text('30-day cash-flow forecast'),
+        ),
       monthlyReview(),
+      const SizedBox(height: 22),
+      if ((c.summary['trend'] as List? ?? []).any((m) => m['status'] != null))
+        panel(
+          SpendingTrendsPanel(
+            months: (c.summary['trend'] as List).cast<Json>(),
+            currency: c.currency,
+            categoryName: (id) => c.category(id).name,
+            cached: c.state.data.cachedAt != null || c.state.stale,
+          ),
+        ),
       const SizedBox(height: 22),
       adaptivePair(
         panel(SpendingChart(presenter: c)),
@@ -1737,6 +1822,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         presenter: widget.presenters.records!,
                         currency: c.currency,
                         initialTab: index,
+                        reviewTransactions: reviewBalanceTransactions,
                         reconcile: () => Navigator.push(
                           context,
                           MaterialPageRoute<void>(
@@ -1753,6 +1839,20 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 ),
             ],
             const SizedBox(height: 12),
+            if (widget.presenters.accounts != null)
+              TextButton.icon(
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute<void>(
+                    builder: (_) => AccountsScreen(
+                      presenter: widget.presenters.accounts!,
+                      currency: c.currency,
+                    ),
+                  ),
+                ),
+                icon: const Icon(Icons.account_balance_wallet_outlined),
+                label: const Text('Accounts & transfers'),
+              ),
             Text('Account currency: ${c.currency}'),
             if (widget.presenters.sync != null)
               TextButton.icon(

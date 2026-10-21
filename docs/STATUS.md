@@ -1,5 +1,59 @@
 # Implementation status
 
+## Multiple cash-flow forecast events on 2026-10-21
+
+- Forecast accepts up to 30 named dated income/expense events. All events participate in timeline balances, minimum cash and first shortfall checks; same-day outflows remain before income.
+- Dates must fall inside the 30-day window and amounts must be positive. Older single-event clients remain supported; mixing formats is rejected. Editing rows invalidates results. No persistence or database migration.
+- Validation: eight backend forecast tests and three Flutter forecast tests passed; analysis clean. See [Cash forecast](CASH_FORECAST.md).
+
+## Connected debt planner and saved scenarios on 2026-10-21
+
+- Debt planner imports known balances and monthly payments from active saved debts. Rates and non-monthly minimums remain blank for explicit confirmation; declared balances are not represented as automatically reconciled values.
+- Named immutable scenario snapshots can be saved, loaded and deleted. Replacing inputs and deleting snapshots require confirmation. Loading historical assumptions never updates real debt schedules; calculations stay local.
+- Owner-scoped encrypted document persistence, idempotent save retries, 30-snapshot cap, account export/deletion coverage and late-response/session guards. No SQL migration. Live database integration was not run for this change.
+- Validation: full backend suite **336 passed**, 9 opt-in tests skipped; full Flutter suite **165 passed**; analysis clean. See [Debt planner](DEBT_PLANNER.md).
+
+## Guided account reconciliation on 2026-10-21
+
+- Check actual balance shows the signed difference and balance components, recent assigned activity, unassigned amount matches, and possible duplicate clues. All hints are explicitly limited to recent entries and require manual review.
+- Actual-balance edits reset confirmation; checks continue to record comparisons without changing transactions or funding cash. No migration or external provider call.
+- Validation: 10 backend account tests and four targeted Flutter account/reconciliation tests passed; analysis clean. See [Accounts](ACCOUNTS.md).
+
+## Debt repayment simulator on 2026-10-21
+
+- Reports → Debt repayment planner compares snowball, avalanche and no-extra avalanche using explicit balances, rates, fixed minimums, first payment month and extra payment.
+- Shows total interest, payoff month and per-debt payoff estimates. Growing debts return incomplete results, not false payoff dates. Edits clear calculations; all form fields remain mounted for validation.
+- Local scenario only: no changes to debt schedules, no external calls and no cash-affordability checks. Assumptions and limits are shown in the UI. See [Debt planner](DEBT_PLANNER.md).
+- Validation: five targeted Flutter calculation/interaction tests passed; static analysis clean.
+
+## Wishlist conversation follow-ups on 2026-10-20
+
+- Gemini chat now accepts up to three recent exchanges to resolve follow-up wish edits. Each request uses fresh funding; old assistant balances are explicitly untrusted context.
+- Conversation history stays in memory, supports New conversation, and clears on account/funding changes and resume. Cards expire after one minute without discarding the discussion. Message lengths and history size are bounded on the server.
+- Validation: 12 backend chat tests and 6 targeted Flutter chat/wishlist tests passed; Flutter analysis clean.
+
+## Gemini wish drafts and affordability cards on 2026-10-20
+
+- Chat extracts a validated single wish draft and opens the existing confirmation editor with its name and price. No automatic saving, reservation, or purchase.
+- The backend reloads funding after Gemini responds and calculates available-to-reserve cash, funding gap and readiness. Stale data suppresses numeric results; new wishes have zero reserved funds. Cards clear on changes and expire after one minute.
+- Validation: 10 backend chat tests, 5 targeted Flutter chat/wishlist tests passed; Flutter analysis clean. A live synthetic RM3,000 phone request produced the correct structured draft. See [Gemini chat](GEMINI_CHAT.md).
+
+## Gemini wishlist chat on 2026-10-20
+
+- Wishlist now exposes Ask Gemini through an authenticated read-only endpoint. Each question uses a limited fresh funding summary; stale cash figures are withheld. Replies cannot save or purchase.
+- Backend-only key/model configuration, bounded input/timeout, per-owner process-local rate limiting, sanitized provider errors, and session/data-change suppression.
+- A generic live Gemini request succeeded with the configured key. Five backend chat tests passed; all 156 Flutter tests passed and analysis is clean. See [Gemini chat](GEMINI_CHAT.md).
+- Earlier notes below about Gemini being inactive describe the implementation before this integration. Transaction parsing remains local; financial-helper calculations remain deterministic.
+
+
+## 30-day cash-flow forecast on 2026-10-20
+
+- Reports now projects reconciled cash against unpaid scheduled obligations, explicit daily spending, optional expected income and an additional expense scenario. Shows minimum/ending cash, first shortfall, buffer breach and event timeline.
+- Overdue payments are assumed today and same-day outflows precede income. Missing/stale data blocks results; edits, session changes, relevant data changes, resume and expiry clear projections. Expected income does not authorize spending.
+- Read-only endpoint; no migration or background forecast polling. See [Cash forecast](CASH_FORECAST.md).
+- Validation: **318 backend tests passed**, 9 opt-in tests skipped; **154 Flutter tests passed**, analysis clean. Existing Starlette test-client deprecation warning remains.
+
+
 ## Actionable budget alerts on 2026-10-15
 
 - New budget notifications open a fresh review of the affected budgets/month, with spent/remaining amounts, top categories, days left and a current-month daily budget guide. The same view is available through Budget actions → Review spending.
@@ -202,3 +256,44 @@ The September results cover tracking and planning inputs; October adds the finan
 - Taps open freshly loaded Protected Funding using the shared native initializer. Account-bound targets wait for authentication and reject another owner's notifications. Bill/budget cancellation remains independent.
 - No new dependencies, database migrations, live-data changes, background polling or server notification jobs. Delivery while the app is closed is not implemented; physical Android/iOS delivery remains unverified.
 - Validation: 298 backend tests passed, 9 opt-in integration tests skipped; all 140 Flutter tests passed; Flutter analysis clean. Coverage includes stale/healthy/unstarted funding, expiry and local-day boundaries, account isolation, duplicate prevention, native failure, logout races, preferences, deletion, navigation and large-text layout.
+
+## Duplicate transactions and entry validation on 2026-10-19
+
+- Transactions → Transaction actions → Duplicate opens an editable draft with the original amount, type, category, note and payment method, dated today. Saving creates a new manual transaction through the existing offline-capable save flow; original identity, version and bill/wishlist links are not copied. Nothing is saved until confirmation.
+- Transaction amount validation now distinguishes missing, nonpositive, malformed and above-limit values. Category selection and note length are validated before save; validation updates after interaction and amount/note fields disable while saving. Date picker initialization safely handles records outside its supported range.
+- Validation: 25 targeted Flutter tests passed, covering duplicate versus edit identity, copied fields, amount boundaries, existing presenter behavior and offline saves. No backend or schema changes.
+
+## Reconciliation review improvements on 2026-10-19
+
+- Opening balances & reconciliation explains opening total plus net recorded activity and links to all transactions from the opening date through the recorded balance date. Navigation clears previous search, category, type and amount filters.
+- Historical cash checks describe observed cash as higher, lower or matched, with sign-specific suggestions for missing/duplicate records, opening balance and account/timing differences. These remain observations at the time of the check, not a comparison against today's cash; unavailable comparisons explain the matching-account requirement.
+- No automatic adjustments, new database writes or schema changes. Existing reconciliation and transaction correction flows remain in use.
+- Validation: 12 targeted Flutter tests passed, including comparison signs, review date range, records/history regressions and narrow-screen large text. Flutter analysis clean.
+
+## Spending trends on 2026-10-19
+
+- Reports includes a three/six-month spending review ending in the selected report month. Existing six-month summary data now includes per-category expense totals, entry/day counts and month status in the financial profile timezone.
+- Shows average recorded expenses across ended months only (including zero-record months), category totals and first-to-last-month increases/decreases. Partial/future months, cached estimates and incomplete recording coverage are labelled; income is excluded from category spending.
+- Window selection is local and reuses the existing cached summary response; no additional window-switch network requests or schema changes. Older cached summaries without the new fields continue displaying existing reports until refreshed.
+- Validation: 2 backend tests passed across plain/encrypted local repositories, 4 Flutter tests passed, analysis clean. Tests cover year boundaries, owner isolation, income exclusion, zero-record months, partial/future periods, average calculation, window switching and large-text rendering.
+
+## Account tracking and transfers on 2026-10-19
+
+- Settings → Accounts & transfers provides named accounts with dated opening balances, derived recorded balances, transfers and immutable actual-balance checks. Ordinary transaction editors support account assignment; historical records remain visibly Unassigned until reviewed.
+- Transfers are atomic, replay-safe owner-scoped records and do not affect transaction income, expenses or budgets. Offline/pending transaction changes block account operations. Existing ordinary offline transaction writes carry optional account IDs with backend validation and version checks.
+- New account collections reuse the encrypted document repository and are included in export/deletion. No SQL migration or live-data change. Legacy budget-wide balances and Protected Funding remain explicitly separate; see ACCOUNTS.md for migration guidance and current limitations.
+- Validation: full backend suite 304 passed, 9 opt-in integration tests skipped; full Flutter suite 150 passed; Flutter analysis clean. Tests cover owner isolation, date validation, immutable reconciliation observations, transfer balance conservation/report neutrality, replay conflicts, sync compatibility, logout guards and large-text account UI. Live Supabase writes and physical-device journeys were not performed.
+
+## Account management on 2026-10-20
+
+- Accounts & transfers → Edit / archive account supports renaming, correcting opening amounts/dates, archiving and restoring. Archived accounts remain visible with their history and balances, while new assignments/transfers/checks require restoration. Existing assigned transactions may retain their archived account during edits.
+- Corrections use expected revisions, atomic owner transactions and replay-safe IDs; opening dates cannot exclude existing transactions or transfers. Undo revalidates corrected opening dates before restoring older activity. Immutable balance checks keep their original values.
+- Account change history retains before/after values, with the latest 30 shown and full history included in export/deletion. No SQL migration or live-data changes. Budget-wide opening balances and Protected Funding remain separate.
+- Validation: 26 backend account/records tests passed, plus the earlier transaction-sync regression checks; 15 targeted Flutter tests passed; Flutter analysis clean. Coverage includes restore UI payloads, stale revisions, duplicate retries, owner isolation, archived-account restrictions, opening-date/undo guards and immutable observations.
+
+## Split transactions on 2026-10-20
+
+- Ordinary transaction editors support 2–20 distinct category portions that exactly equal the positive total. Editing/duplication and offline saves preserve portions; transaction rows display their breakdown.
+- Category budgets, alerts/reviews, search, charts and spending trends use portions. Overall totals and account balances count the payment once. Category deletion/type changes and undo validate every referenced category. Bill and wishlist linking continue requiring unsplit expenses.
+- Existing encrypted transaction documents hold optional splits; no migration or live-data rewrite. Legacy empty-split sync fingerprints remain compatible. Canonical list serialization makes initial and replay responses identical.
+- Validation: full backend suite 312 passed, 9 opt-in integration tests skipped; full Flutter suite 152 passed, followed by 16 targeted regression tests after candidate filtering changes; final analysis clean. See SPLIT_TRANSACTIONS.md for usage and limitations.

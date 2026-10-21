@@ -216,6 +216,8 @@ class ApiFinanceRepository
           'date': dateOf(draft.date),
           'note': draft.note,
           'payment_method': draft.paymentMethod,
+          'account_id': draft.accountId,
+          'splits': draft.splits.map((s) => s.toJson()).toList(),
           'source': draft.source,
         },
       );
@@ -231,6 +233,8 @@ class ApiFinanceRepository
         'date': dateOf(draft.date),
         'note': draft.note,
         'payment_method': draft.paymentMethod,
+        'account_id': draft.accountId,
+        'splits': draft.splits.map((s) => s.toJson()).toList(),
         'source': draft.source,
       },
     );

@@ -4,6 +4,7 @@ import '../features/funding/presenter/funding_presenter.dart';
 import '../features/planning/model/input_rules.dart';
 import '../models/finance.dart';
 import 'funding_screen.dart';
+import 'wishlist_chat_screen.dart';
 
 class WishlistScreen extends StatefulWidget {
   final FundingPresenter presenter;
@@ -85,6 +86,19 @@ class _WishlistScreenState extends State<WishlistScreen> {
         appBar: AppBar(
           title: const Text('Guilt-free wishlist'),
           actions: [
+            if (p.chatRequest != null)
+              IconButton(
+                tooltip: 'Ask Gemini',
+                icon: const Icon(Icons.chat_bubble_outline),
+                onPressed: state.editable
+                    ? () => Navigator.push(
+                        context,
+                        MaterialPageRoute<void>(
+                          builder: (_) => WishlistChatScreen(presenter: p),
+                        ),
+                      )
+                    : null,
+              ),
             IconButton(
               tooltip: 'Refresh wishlist',
               onPressed: state.saving ? null : p.reload,

@@ -71,9 +71,15 @@ class OverviewPresenter extends Presenter<OverviewState> {
       entries.where(
         (entry) =>
             (type == 'all' || entry.type == type) &&
-            (categoryId == null || entry.categoryId == categoryId) &&
+            (categoryId == null ||
+                entry.categoryId == categoryId ||
+                entry.splits.any((s) => s.categoryId == categoryId)) &&
             (entry.note.toLowerCase().contains(query) ||
-                category(entry.categoryId).name.toLowerCase().contains(query)),
+                category(entry.categoryId).name.toLowerCase().contains(query) ||
+                entry.splits.any(
+                  (s) =>
+                      category(s.categoryId).name.toLowerCase().contains(query),
+                )),
       ),
     );
   }

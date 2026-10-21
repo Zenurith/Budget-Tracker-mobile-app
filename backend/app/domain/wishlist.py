@@ -208,7 +208,7 @@ def purchase(id, data: Purchase, user, db):
         purchase_id = str(uuid5(NAMESPACE_URL, f"pocketwise:purchase:{user['id']}:{data.operation_id}"))
         if data.transaction_id:
             expense = owned('transactions', data.transaction_id, user, tx)
-            if (expense['type'] != 'expense' or expense['amount'] != data.amount or expense['date'] != data.date.isoformat()
+            if (expense.get('splits') or expense['type'] != 'expense' or expense['amount'] != data.amount or expense['date'] != data.date.isoformat()
                     or expense['category_id'] != data.category_id or expense.get('commitment_occurrence_id')
                     or expense.get('wishlist_purchase_id')):
                 f.conflict('Choose an unlinked expense with matching amount, date and category.')

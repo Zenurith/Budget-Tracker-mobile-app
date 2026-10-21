@@ -20,7 +20,9 @@ class ApiPlanningRepository implements PlanningRepository {
       entries.addAll(
         batch.where(
           (e) =>
-              e.commitmentOccurrenceId == null && e.wishlistPurchaseId == null,
+              e.commitmentOccurrenceId == null &&
+              e.wishlistPurchaseId == null &&
+              e.splits.isEmpty,
         ),
       );
       received += batch.length;

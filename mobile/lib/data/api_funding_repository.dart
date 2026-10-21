@@ -21,7 +21,11 @@ class ApiFundingRepository implements FundingRepository {
       if (batch.isEmpty || items.length >= (result['total'] as int)) break;
       page++;
     }
-    return {'items': items};
+    return {
+      'items': items
+          .where((e) => (e['splits'] as List? ?? []).isEmpty)
+          .toList(),
+    };
   }
 
   @override
